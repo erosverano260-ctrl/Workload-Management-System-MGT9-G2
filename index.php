@@ -19,5 +19,7 @@ require 'includes/header.php';
 <a href="enrollment.php" class="quick-card"><b>✎</b><div><strong>Process Enrollment</strong><small>Enroll or drop students</small></div><span>→</span></a>
 <a href="classrooms.php" class="quick-card"><b>⌂</b><div><strong>Classrooms</strong><small>Check room capacity and status</small></div><span>→</span></a>
 <a href="instructors.php" class="quick-card"><b>♙</b><div><strong>Instructors</strong><small>See faculty teaching availability</small></div><span>→</span></a>
+<a href="Faculty_schedule.php" class="quick-card"><b>♙</b><div><strong>Create Schedule</strong><small>Create a schedule for faculty</small></div><span>→</span></a>
 </section>
+
 <?php require 'includes/footer.php'; ?>

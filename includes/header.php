@@ -22,6 +22,7 @@ if (!currentRole()) { header('Location: login.php'); exit; }
         <a href="classrooms.php" class="<?= $page==='rooms'?'active':'' ?>"><b>⌂</b> Classrooms</a>
         <a href="instructors.php" class="<?= $page==='instructors'?'active':'' ?>"><b>♙</b> Instructors</a>
         <a href="schedule.php" class="<?= $page==='schedule'?'active':'' ?>"><b>◷</b> Print Schedules</a>
+        <a href="Faculty_schedule.php" class="<?= $page==='Faculty_schedule'?'active':'' ?>"><b>◷</b> Faculty Schedules</a>
     </nav>
     <div class="sidebar-foot">
         <div class="avatar small"><?= strtoupper(substr($_SESSION['faculty_name'] ?? 'F', 0, 1)) ?></div>
