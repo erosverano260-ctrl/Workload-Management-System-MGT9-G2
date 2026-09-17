@@ -1,6 +1,6 @@
 <?php
-$page = 'schedule';
-$title = 'Class Schedule';
+$page = 'Faculty_schedule';
+$title = 'Faculty Workload Schedule';
 
 require 'includes/data.php';
 require 'includes/auth.php';
@@ -10,13 +10,94 @@ require 'includes/header.php';
 
 <link rel="stylesheet" href="assets/faculty_schedule.css">
 
-</head>
+<style>
+    .schedule-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        padding: 0 0 14px;
+    }
 
-<body>
+    .save-schedule-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: #1f7a4d;
+        color: #fff;
+        border: none;
+        padding: 10px 18px;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+    }
 
-<button id="createWorkloadBtn" type="button">
-    Create Workload
-</button>
+    .save-schedule-btn:hover {
+        background: #17603c;
+    }
+
+    .print-header {
+        display: none;
+    }
+
+    @media print {
+        .schedule-toolbar,
+        #scheduleModal {
+            display: none !important;
+        }
+
+        .print-header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin: 0 0 16px;
+        }
+
+        .print-header img {
+            height: 48px;
+        }
+
+        .print-header .print-school {
+            font-size: 11px;
+            letter-spacing: .05em;
+            color: #555;
+            text-transform: uppercase;
+        }
+
+        .print-header h3 {
+            margin: 2px 0;
+        }
+
+        .print-header p {
+            margin: 0;
+            font-size: 12px;
+            color: #555;
+        }
+
+        .schedule-container {
+            overflow: visible;
+        }
+    }
+</style>
+
+<div class="schedule-toolbar">
+    <button id="createWorkloadBtn" type="button">
+        Create Workload
+    </button>
+
+    <button id="saveScheduleBtn" type="button" class="save-schedule-btn" title="Save the workload schedule and open the print dialog">
+        🖨 Save &amp; Print
+    </button>
+</div>
+
+<div class="print-header" id="workloadPrintHeader">
+    <img src="assets/ee-logo.svg" alt="logo">
+    <div>
+        <div class="print-school">Institute of Integrated Electrical Engineers</div>
+        <h3>Faculty Workload Schedule</h3>
+        <p>Academic Year 2026–2027 · Generated <span id="printGeneratedDate"></span></p>
+    </div>
+</div>
 
 <div class="schedule-container">
 
@@ -408,6 +489,16 @@ const createButton = document.getElementById("createWorkloadBtn");
 const modal = document.getElementById("scheduleModal");
 const saveButton = document.getElementById("saveBtn");
 const cancelButton = document.getElementById("cancelBtn");
+const saveScheduleBtn = document.getElementById("saveScheduleBtn");
+
+// Top-right "Save & Print" button: makes the workload schedule print-ready
+saveScheduleBtn.addEventListener("click", function () {
+    const dateSpan = document.getElementById("printGeneratedDate");
+    if (dateSpan) {
+        dateSpan.textContent = new Date().toLocaleDateString();
+    }
+    window.print();
+});
 
 let mergedSlot = null;
 let selectedSlots = [];
@@ -576,6 +667,4 @@ cancelButton.addEventListener("click", function () {
 
 </script>
 
-
-</body>
-</html>
+<?php require 'includes/footer.php'; ?>
