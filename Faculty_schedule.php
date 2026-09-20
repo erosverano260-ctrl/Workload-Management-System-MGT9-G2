@@ -6,6 +6,9 @@ require 'includes/data.php';
 require 'includes/auth.php';
 requireRole('faculty');
 require 'includes/header.php';
+require 'includes/db.php';
+
+
 ?>
 
 <link rel="stylesheet" href="assets/faculty_schedule.css">
@@ -14,9 +17,93 @@ require 'includes/header.php';
 
 <body>
 
+<<<<<<< Updated upstream
 <button id="createWorkloadBtn" type="button">
     Create Workload
 </button>
+=======
+    .save-schedule-btn:hover {
+        background: #17603c;
+    }
+
+    .print-header {
+        display: none;
+    }
+
+@media print {
+    .schedule-toolbar,
+    #scheduleModal {
+        display: none !important;
+    }
+
+    .schedule,
+    .schedule * {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    /* ...rest of your existing print rules... */
+
+
+
+    .schedule-slot.merged {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+        .print-header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin: 0 0 16px;
+        }
+
+        .print-header img {
+            height: 48px;
+        }
+
+        .print-header .print-school {
+            font-size: 11px;
+            letter-spacing: .05em;
+            color: #555;
+            text-transform: uppercase;
+        }
+
+        .print-header h3 {
+            margin: 2px 0;
+        }
+
+        .print-header p {
+            margin: 0;
+            font-size: 12px;
+            color: #555;
+        }
+
+        .schedule-container {
+            overflow: visible;
+        }
+    }
+</style>
+
+<div class="schedule-toolbar">
+    <button id="createWorkloadBtn" type="button">
+        Create Workload
+    </button>
+
+    <button id="saveScheduleBtn" type="button" class="save-schedule-btn" title="Save the workload schedule and open the print dialog">
+        🖨 Save &amp; Print
+    </button>
+</div>
+
+<div class="print-header" id="workloadPrintHeader">
+    <img src="assets/ee-logo.svg" alt="logo">
+    <div>
+        <div class="print-school">Institute of Integrated Electrical Engineers</div>
+        <h3>Faculty Workload Schedule</h3>
+        <p>Academic Year 2026–2027 · Generated <span id="printGeneratedDate"></span></p>
+    </div>
+</div>
+>>>>>>> Stashed changes
 
 <div class="schedule-container">
 
@@ -235,32 +322,22 @@ require 'includes/header.php';
             Create Workload
         </h2>
 
-
         <div class="form-group">
-
-            <label>Course Code</label>
-
-            <input
-                type="text"
-                id="courseCode"
-                placeholder="e.g. IT 112"
-            >
-
+            <label>Year Level</label>
+            <select id="yearLevel">
+            <option value="">Select Year</option>
+            <option value="1">1st Year</option>
+            <option value="2">2nd Year</option>
+            <option value="3">3rd Year</option>
+            <option value="4">4th Year</option>
+            </select>
         </div>
-
-
         <div class="form-group">
-
-            <label>Course Name</label>
-
-            <input
-                type="text"
-                id="courseName"
-                placeholder="e.g. Database Management"
-            >
-
+            <label>Course</label>
+            <select id="courseSelect" name="course_id">
+            <option value="">Select year level first</option>
+            </select>
         </div>
-
 
         <div class="form-group">
 
@@ -407,10 +484,67 @@ require 'includes/header.php';
 const createButton = document.getElementById("createWorkloadBtn");
 const modal = document.getElementById("scheduleModal");
 const saveButton = document.getElementById("saveBtn");
+<<<<<<< Updated upstream
+const cancelButton = document.getElementById("cancelBtn");
+=======
+const saveScheduleBtn = document.getElementById("saveScheduleBtn");
 const cancelButton = document.getElementById("cancelBtn");
 
-let mergedSlot = null;
-let selectedSlots = [];
+saveScheduleBtn.addEventListener("click", function () {
+    const dateSpan = document.getElementById("printGeneratedDate");
+    if (dateSpan) {
+        dateSpan.textContent = new Date().toLocaleDateString();
+    }
+    window.print();
+});
+
+/* ---------- Year Level → Course dropdown ---------- */
+const yearLevelSelect = document.getElementById("yearLevel");
+const courseSelect = document.getElementById("courseSelect");
+
+yearLevelSelect.addEventListener("change", function () {
+    const year = this.value;
+
+    if (!year) {
+        courseSelect.innerHTML = '<option value="">Select year level first</option>';
+        return;
+    }
+
+    courseSelect.innerHTML = '<option value="">Loading...</option>';
+
+    fetch(`data/get_courses.php?year_level=${year}`)
+        .then(res => res.json())
+        .then(courses => {
+            courseSelect.innerHTML = '<option value="">Select Course</option>';
+            courses.forEach(c => {
+                const opt = document.createElement("option");
+                opt.value = c.course_id;
+                opt.dataset.code = c.course_code;
+                opt.dataset.name = c.course_name;
+                opt.textContent = `${c.course_code} - ${c.course_name}`;
+                courseSelect.appendChild(opt);
+            });
+        })
+        .catch(err => {
+            courseSelect.innerHTML = '<option value="">Failed to load courses</option>';
+            console.error("get_courses fetch failed:", err);
+        });
+});
+
+    let mergedSlot = null;
+    let selectedSlots = [];
+
+
+// Top-right "Save & Print" button: makes the workload schedule print-ready
+saveScheduleBtn.addEventListener("click", function () {
+    const dateSpan = document.getElementById("printGeneratedDate");
+    if (dateSpan) {
+        dateSpan.textContent = new Date().toLocaleDateString();
+    }
+    window.print();
+});
+>>>>>>> Stashed changes
+
 
 
 const schedule = document.getElementById("schedule");
@@ -542,13 +676,13 @@ document.addEventListener("click", function (event) {
 
 saveButton.addEventListener("click", function () {
 
-    const courseCode = document.getElementById("courseCode").value;
-    const courseName = document.getElementById("courseName").value;
+    const selectedOption = courseSelect.options[courseSelect.selectedIndex];
+    const courseCode = selectedOption ? selectedOption.dataset.code : "";
+    const courseName = selectedOption ? selectedOption.dataset.name : "";
     const faculty = document.getElementById("faculty").value;
     const section = document.getElementById("section").value;
     const room = document.getElementById("room").value;
     const cellColor = document.getElementById("cellColor").value;
-
 
     if (!courseCode || !courseName || !faculty || !section || !room) {
         alert("Please fill in all fields.");
@@ -562,16 +696,17 @@ saveButton.addEventListener("click", function () {
             <span>${faculty}</span>
             <span>${section}</span>
             <span>${room}</span>
-            
         </div>
     `;
-         mergedSlot.style.setProperty("background-color",cellColor,"important");
+    mergedSlot.style.setProperty("background-color", cellColor, "important");
     modal.classList.remove("active");
 });
 
 cancelButton.addEventListener("click", function () {
     modal.classList.remove("active");
 });
+
+
 
 
 </script>

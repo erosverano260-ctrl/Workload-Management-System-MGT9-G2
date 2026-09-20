@@ -153,6 +153,36 @@ tr:last-child td{border-bottom:none}
 .confirm-box span#modalCode,.confirm-box span#modalStudent{color:var(--muted);font-size:12px}
 .confirm-box div{display:flex;justify-content:space-between;font-size:13px;padding-top:6px;border-top:1px dashed var(--border)}
 
+/* =========================
+   FORM
+========================= */
+
+.form-group {
+    margin-bottom: 14px;
+}
+
+.form-group label {
+    display: block;
+
+    margin-bottom: 6px;
+
+    font-weight: bold;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+
+    padding: 10px;
+
+    border: 1px solid #aaa;
+
+    border-radius: 5px;
+
+    font-size: 14px;
+}
+
+
 /* ---------- Instructors ---------- */
 .instructor-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
 .instructor-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);position:relative;transition:transform .2s ease,box-shadow .2s ease;animation:fadeInUp .4s ease both}
