@@ -42,6 +42,20 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    /* ---------- Add/Edit Course modal (courses.php) ---------- */
+    const courseModal = document.getElementById('courseFormModal');
+    if (courseModal) {
+        const courseBackdrop = document.getElementById('courseFormBackdrop');
+        const openBtn = document.getElementById('openAddCourse');
+        const closeBtn = document.getElementById('closeCourseForm');
+
+        openBtn?.addEventListener('click', () => { courseModal.classList.add('open'); courseBackdrop.classList.add('open'); });
+        closeBtn?.addEventListener('click', () => { courseModal.classList.remove('open'); courseBackdrop.classList.remove('open'); });
+        courseBackdrop?.addEventListener('click', () => { courseModal.classList.remove('open'); courseBackdrop.classList.remove('open'); });
+    }
+
+    
+
     /* ---------- Course search filter (courses.php) ---------- */
     document.getElementById('courseSearch')?.addEventListener('input', function () {
         const q = this.value.toLowerCase();
