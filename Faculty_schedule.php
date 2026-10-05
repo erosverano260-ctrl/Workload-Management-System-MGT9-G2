@@ -1,27 +1,37 @@
 <?php
-$page = 'schedule';
-$title = 'Class Schedule';
+$page = 'Faculty_schedule';
+$title = 'Faculty Workload Schedule';
 
 require 'includes/data.php';
 require 'includes/auth.php';
 requireRole('faculty');
 require 'includes/header.php';
-require 'includes/db.php';
-
-
 ?>
 
 <link rel="stylesheet" href="assets/faculty_schedule.css">
 
-</head>
+<style>
+    .schedule-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        padding: 0 0 14px;
+    }
 
-<body>
+    .save-schedule-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: #1f7a4d;
+        color: #fff;
+        border: none;
+        padding: 10px 18px;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+    }
 
-<<<<<<< Updated upstream
-<button id="createWorkloadBtn" type="button">
-    Create Workload
-</button>
-=======
     .save-schedule-btn:hover {
         background: #17603c;
     }
@@ -30,7 +40,8 @@ require 'includes/db.php';
         display: none;
     }
 
-@media print {
+
+    @media print {
     .schedule-toolbar,
     #scheduleModal {
         display: none !important;
@@ -42,21 +53,39 @@ require 'includes/db.php';
         print-color-adjust: exact;
     }
 
-    /* ...rest of your existing print rules... */
-
-
-
-    .schedule-slot.merged {
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
+    @page {
+        size: landscape;
+        margin: 8mm;
     }
 
-        .print-header {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            margin: 0 0 16px;
-        }
+    .schedule-container {
+        width: 100%;
+        max-width: 100%;
+   
+    }
+
+    .schedule {
+        min-width: 0;
+        width: 100%;
+        grid-template-rows:
+            30px
+            repeat(11, 30px)
+            30px
+            repeat(12, 35px);
+    }
+
+    .cell {
+        padding: 2px;
+        font-size: 8px;
+    }
+
+    .header {
+        font-size: 9px;
+    }
+
+    .entry strong {
+        font-size: 8px;
+    }
 
         .print-header img {
             height: 48px;
@@ -80,7 +109,7 @@ require 'includes/db.php';
         }
 
         .schedule-container {
-            overflow: visible;
+            overflow: hidden;
         }
     }
 </style>
@@ -103,7 +132,6 @@ require 'includes/db.php';
         <p>Academic Year 2026–2027 · Generated <span id="printGeneratedDate"></span></p>
     </div>
 </div>
->>>>>>> Stashed changes
 
 <div class="schedule-container">
 
@@ -322,48 +350,25 @@ require 'includes/db.php';
             Create Workload
         </h2>
 
+
         <div class="form-group">
             <label>Year Level</label>
             <select id="yearLevel">
-            <option value="">Select Year</option>
-            <option value="1">1st Year</option>
-            <option value="2">2nd Year</option>
-            <option value="3">3rd Year</option>
-            <option value="4">4th Year</option>
+                <option value="">Select Year</option>
+                <option value="1">1st Year</option>
+                <option value="2">2nd Year</option>
+                <option value="3">3rd Year</option>
+                <option value="4">4th Year</option>
             </select>
         </div>
+
         <div class="form-group">
             <label>Course</label>
             <select id="courseSelect" name="course_id">
-            <option value="">Select year level first</option>
+                <option value="">Select year level first</option>
             </select>
         </div>
 
-        <div class="form-group">
-
-            <label>Faculty</label>
-
-            <select id="faculty">
-
-                <option value="">
-                    Select Faculty
-                </option>
-
-                <option value="Faculty 1">
-                    Faculty 1
-                </option>
-
-                <option value="Faculty 2">
-                    Faculty 2
-                </option>
-
-                <option value="Faculty 3">
-                    Faculty 3
-                </option>
-
-            </select>
-
-        </div>
 
 
         <div class="form-group">
@@ -484,12 +489,10 @@ require 'includes/db.php';
 const createButton = document.getElementById("createWorkloadBtn");
 const modal = document.getElementById("scheduleModal");
 const saveButton = document.getElementById("saveBtn");
-<<<<<<< Updated upstream
 const cancelButton = document.getElementById("cancelBtn");
-=======
 const saveScheduleBtn = document.getElementById("saveScheduleBtn");
-const cancelButton = document.getElementById("cancelBtn");
 
+// Top-right "Save & Print" button: makes the workload schedule print-ready
 saveScheduleBtn.addEventListener("click", function () {
     const dateSpan = document.getElementById("printGeneratedDate");
     if (dateSpan) {
@@ -498,7 +501,7 @@ saveScheduleBtn.addEventListener("click", function () {
     window.print();
 });
 
-/* ---------- Year Level → Course dropdown ---------- */
+/* ---------- Year Level -> Course dropdown ---------- */
 const yearLevelSelect = document.getElementById("yearLevel");
 const courseSelect = document.getElementById("courseSelect");
 
@@ -531,20 +534,8 @@ yearLevelSelect.addEventListener("change", function () {
         });
 });
 
-    let mergedSlot = null;
-    let selectedSlots = [];
-
-
-// Top-right "Save & Print" button: makes the workload schedule print-ready
-saveScheduleBtn.addEventListener("click", function () {
-    const dateSpan = document.getElementById("printGeneratedDate");
-    if (dateSpan) {
-        dateSpan.textContent = new Date().toLocaleDateString();
-    }
-    window.print();
-});
->>>>>>> Stashed changes
-
+let mergedSlot = null;
+let selectedSlots = [];
 
 
 const schedule = document.getElementById("schedule");
@@ -679,12 +670,12 @@ saveButton.addEventListener("click", function () {
     const selectedOption = courseSelect.options[courseSelect.selectedIndex];
     const courseCode = selectedOption ? selectedOption.dataset.code : "";
     const courseName = selectedOption ? selectedOption.dataset.name : "";
-    const faculty = document.getElementById("faculty").value;
     const section = document.getElementById("section").value;
     const room = document.getElementById("room").value;
     const cellColor = document.getElementById("cellColor").value;
 
-    if (!courseCode || !courseName || !faculty || !section || !room) {
+
+    if (!courseCode || !courseName ||  !section || !room) {
         alert("Please fill in all fields.");
         return;
     }
@@ -693,12 +684,12 @@ saveButton.addEventListener("click", function () {
         <div class="entry">
             <strong>${courseCode}</strong>
             <span>${courseName}</span>
-            <span>${faculty}</span>
             <span>${section}</span>
             <span>${room}</span>
+            
         </div>
     `;
-    mergedSlot.style.setProperty("background-color", cellColor, "important");
+         mergedSlot.style.setProperty("background-color",cellColor,"important");
     modal.classList.remove("active");
 });
 
@@ -707,10 +698,6 @@ cancelButton.addEventListener("click", function () {
 });
 
 
-
-
 </script>
 
-
-</body>
-</html>
+<?php require 'includes/footer.php'; ?>

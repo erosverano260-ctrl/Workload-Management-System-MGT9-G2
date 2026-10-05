@@ -1,5 +1,8 @@
 <?php
-require '../includes/db.php'; 
+header('Content-Type: application/json');
+
+require '../includes/db.php';
+
 $db = new database();
 $conn = $db->connect();
 
@@ -15,5 +18,4 @@ while ($row = $result->fetch_assoc()) {
     $courses[] = $row;
 }
 
-header('Content-Type: application/json');
 echo json_encode($courses);

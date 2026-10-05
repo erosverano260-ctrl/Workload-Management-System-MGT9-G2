@@ -33,25 +33,7 @@ body {
     background: #3e9142;
 }
 
-.cancel-btn{
-    background-color:#c8c8c8;
-    color:var(--black);
-    border:none;
-    padding:11px 20px;
-    border-radius:10px;
-    font-weight:700;
-    cursor:pointer;
-    display:inline-flex;
-    align-items:center;
-    gap:8px;
-    font-size:14px;
-    transition:background-color .2s ease,transform .15s ease,box-shadow .2s ease}
 
-
-.cancel-btn:hover {
-    background: red;
-    transform: translateY(-2px);
-}
 /* =========================
    SCHEDULE
 ========================= */
@@ -194,6 +176,7 @@ body {
    IMPORTANT:
    The modal is HIDDEN by default.
 */
+
 .grid-modal {
     display: none;
     position: fixed;
@@ -215,6 +198,7 @@ body {
     opacity: 1;
     pointer-events: auto;
 }
+
 /* =========================
    MODAL BOX
 ========================= */
@@ -323,6 +307,13 @@ body {
 }
 
 
+/* CANCEL */
+
+.cancel-btn {
+    background: #ddd;
+    text-align: center;
+}
+
 
 /* DELETE */
 
@@ -381,6 +372,3 @@ body {
 
 }
 
-.grid-modal .schedule-toolbar {
-    margin-bottom: 15px;
-}
