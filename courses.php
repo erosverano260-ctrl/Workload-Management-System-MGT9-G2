@@ -1,6 +1,6 @@
 <?php
 $page='courses';$title='Course Catalog';
-require 'data/get_courses.php';
+require 'includes/db.php';
 require 'includes/auth.php';
 requireRole('faculty');
 
