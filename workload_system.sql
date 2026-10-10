@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Sep 20, 2026 at 03:13 PM
+-- Generation Time: Oct 10, 2026 at 03:54 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -41,7 +41,16 @@ CREATE TABLE `courses` (
 --
 
 INSERT INTO `courses` (`course_id`, `course_code`, `course_name`, `year_level`, `units`, `status`) VALUES
-(1, 'EE301', 'Power System 1', 3, 3, 'Open');
+(2, 'EE301', 'Power System 1', 1, 3, 'Open'),
+(3, 'IP123', 'Programming', 2, 3, 'Open'),
+(4, 'ECE101', 'Fundamentals of Electrical Engineering', 1, 3, 'Open'),
+(5, 'ECE102', 'Engineering Mathematics 1', 1, 3, 'Open'),
+(6, 'ECE201', 'Circuit Analysis', 2, 3, 'Open'),
+(7, 'ECE202', 'Digital Electronics', 2, 3, 'Open'),
+(8, 'ECE301', 'Control Systems Engineering', 3, 3, 'Open'),
+(9, 'ECE302', 'Microprocessor Systems', 3, 3, 'Open'),
+(10, 'ECE401', 'Power Systems Analysis', 4, 3, 'Open'),
+(11, 'ECE402', 'Engineering Design Project', 4, 3, 'Open');
 
 -- --------------------------------------------------------
 
@@ -51,7 +60,10 @@ INSERT INTO `courses` (`course_id`, `course_code`, `course_name`, `year_level`, 
 
 CREATE TABLE `faculty` (
   `faculty_id` int(11) NOT NULL,
-  `faculty_name` varchar(100) NOT NULL
+  `username` varchar(255) NOT NULL,
+  `faculty_name` varchar(100) NOT NULL,
+  `password` varchar(255) NOT NULL,
+  `role` varchar(255) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
 -- --------------------------------------------------------
@@ -62,9 +74,21 @@ CREATE TABLE `faculty` (
 
 CREATE TABLE `rooms` (
   `room_id` int(11) NOT NULL,
+  `room_code` varchar(100) NOT NULL,
   `room_name` varchar(50) NOT NULL,
   `capacity` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+
+--
+-- Dumping data for table `rooms`
+--
+
+INSERT INTO `rooms` (`room_id`, `room_code`, `room_name`, `capacity`) VALUES
+(1, '103', 'ENGINEERING LABORATORY', 40),
+(2, '101', 'Lab 2', 40),
+(3, '', 'Room 303', 40),
+(4, '', 'Room 303', 40),
+(5, '999', 'LOL', 40);
 
 -- --------------------------------------------------------
 
@@ -75,7 +99,7 @@ CREATE TABLE `rooms` (
 CREATE TABLE `schedules` (
   `schedule_id` int(11) NOT NULL,
   `course_id` int(11) NOT NULL,
-  `faculty_id` int(11) NOT NULL,
+  `faculty_id` int(11) DEFAULT NULL,
   `room_id` int(11) NOT NULL,
   `section` varchar(20) DEFAULT NULL,
   `day_of_week` varchar(10) DEFAULT NULL,
@@ -83,6 +107,16 @@ CREATE TABLE `schedules` (
   `end_time` time DEFAULT NULL,
   `cell_color` varchar(20) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+
+--
+-- Dumping data for table `schedules`
+--
+
+INSERT INTO `schedules` (`schedule_id`, `course_id`, `faculty_id`, `room_id`, `section`, `day_of_week`, `start_time`, `end_time`, `cell_color`) VALUES
+(38, 2, NULL, 1, 'BSIT-1A', 'Monday', '07:00:00', '07:30:00', '#3ddb8c'),
+(39, 2, NULL, 1, 'BSIT-1A', 'Monday', '07:30:00', '08:00:00', '#67e0a3'),
+(40, 4, NULL, 3, 'BSIT-1A', 'Tuesday', '10:00:00', '12:00:00', '#67e0a3'),
+(41, 3, NULL, 1, 'BSIT-2A', 'Wednesday', '08:00:00', '10:00:00', '#40e291');
 
 --
 -- Indexes for dumped tables
@@ -124,7 +158,7 @@ ALTER TABLE `schedules`
 -- AUTO_INCREMENT for table `courses`
 --
 ALTER TABLE `courses`
-  MODIFY `course_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `course_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
 
 --
 -- AUTO_INCREMENT for table `faculty`
@@ -136,13 +170,13 @@ ALTER TABLE `faculty`
 -- AUTO_INCREMENT for table `rooms`
 --
 ALTER TABLE `rooms`
-  MODIFY `room_id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `room_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `schedules`
 --
 ALTER TABLE `schedules`
-  MODIFY `schedule_id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `schedule_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=42;
 
 --
 -- Constraints for dumped tables
