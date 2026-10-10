@@ -11,23 +11,52 @@ function h($v){ return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
 $db = new database();
 $conn = $db->connect();
 
-// --- SAVE NEW WORKLOAD ---
+// --- SAVE (create or update) ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_workload') {
-    $stmt = $conn->prepare(
-        "INSERT INTO schedules (course_id, faculty_id, room_id, section, day_of_week, start_time, end_time, cell_color)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-    );
-    $stmt->bind_param(
-        "iiissss",
-        $_POST['course_id'],
-        $_POST['faculty_id'],
-        $_POST['room_id'],
-        $_POST['section'],
-        $_POST['day_of_week'],
-        $_POST['start_time'],
-        $_POST['end_time'],
-        $_POST['cell_color']
-    );
+    $scheduleId = $_POST['schedule_id'] ?? '';
+
+    if ($scheduleId !== '') {
+        // EDIT: update the existing row
+        $stmt = $conn->prepare(
+            "UPDATE schedules SET course_id=?, room_id=?, section=?, day_of_week=?, start_time=?, end_time=?, cell_color=? WHERE schedule_id=?"
+        );
+        $stmt->bind_param(
+            "iisssssi",
+            $_POST['course_id'],
+            $_POST['room_id'],
+            $_POST['section'],
+            $_POST['day_of_week'],
+            $_POST['start_time'],
+            $_POST['end_time'],
+            $_POST['cell_color'],
+            $scheduleId
+        );
+    } else {
+        // CREATE: insert a new row
+        $stmt = $conn->prepare(
+            "INSERT INTO schedules (course_id, room_id, section, day_of_week, start_time, end_time, cell_color)
+             VALUES (?, ?, ?, ?, ?, ?, ?)"
+        );
+        $stmt->bind_param(
+            "iisssss",
+            $_POST['course_id'],
+            $_POST['room_id'],
+            $_POST['section'],
+            $_POST['day_of_week'],
+            $_POST['start_time'],
+            $_POST['end_time'],
+            $_POST['cell_color']
+        );
+    }
+    $stmt->execute();
+    header('Location: schedule.php');
+    exit;
+}
+
+// --- DELETE ---
+if (isset($_GET['delete'])) {
+    $stmt = $conn->prepare("DELETE FROM schedules WHERE schedule_id=?");
+    $stmt->bind_param("i", $_GET['delete']);
     $stmt->execute();
     header('Location: schedule.php');
     exit;
@@ -43,38 +72,15 @@ require 'includes/header.php';
         display: flex;
         gap: 10px;
     }
-
-    @media print {
-        body.printing-single .schedule-tools,
-        body.printing-single #openCreateWorkload,
-        body.printing-single .print-btn,
-        body.printing-single .grid-modal,
-        body.printing-single .schedule-grid {
-            display: none !important;
-        }
-        body.printing-single #detailModal {
-            display: block !important;
-            position: static !important;
-            opacity: 1 !important;
-            visibility: visible !important;
-            transform: none !important;
-            box-shadow: none !important;
-        }
-        body.printing-single #detailModal .modal-buttons,
-        body.printing-single #detailModal .modal-close {
-            display: none !important;
-        }
-    }
 </style>
 
 <?php
 // --- Load all scheduled workloads, grouped by day ---
 $sql = "SELECT s.*, c.course_code, c.course_name, c.year_level,
-               f.faculty_name, r.room_name
+               r.room_name
         FROM schedules s
-        JOIN courses c  ON c.course_id  = s.course_id
-        JOIN faculty f  ON f.faculty_id = s.faculty_id
-        JOIN rooms r    ON r.room_id    = s.room_id
+        JOIN courses c ON c.course_id = s.course_id
+        JOIN rooms r   ON r.room_id   = s.room_id
         ORDER BY FIELD(s.day_of_week,'Monday','Tuesday','Wednesday','Thursday','Friday'), s.start_time";
 $result = $conn->query($sql);
 $allEntries = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
@@ -94,29 +100,30 @@ foreach ($allEntries as $e) {
     </div>
 </div>
 
-
 <div class="printable-schedule" id="printableSchedule">
-
     <div class="schedule-grid">
     <?php foreach ($byDay as $day => $entries): ?>
         <div class="day-column">
             <div class="day-title"><?= h($day) ?></div>
             <?php foreach ($entries as $e): ?>
             <div class="schedule-item"
+                 data-schedule-id="<?= h($e['schedule_id']) ?>"
+                 data-course-id="<?= h($e['course_id']) ?>"
+                 data-room-id="<?= h($e['room_id']) ?>"
+                 data-day="<?= h($e['day_of_week']) ?>"
+                 data-start="<?= h($e['start_time']) ?>"
+                 data-end="<?= h($e['end_time']) ?>"
+                 data-color="<?= h($e['cell_color']) ?>"
                  data-year="<?= h($e['year_level']) ?>"
+                 data-section="<?= h($e['section']) ?>"
                  data-course="<?= h($e['course_code']) ?>"
                  data-name="<?= h($e['course_name']) ?>"
-                 data-schedule="<?= h($e['day_of_week'].' '.$e['start_time'].' - '.$e['end_time']) ?>"
                  data-room="<?= h($e['room_name']) ?>"
-                 data-faculty="<?= h($e['faculty_name']) ?>"
-                 data-section="<?= h($e['section']) ?>"
-                 data-yearlabel="<?= h($e['year_level']) ?>"
                  style="border-left:4px solid <?= h($e['cell_color']) ?>">
                 <span class="code"><?= h($e['course_code']) ?></span>
                 <strong><?= h($e['course_name']) ?></strong>
                 <small><?= h($e['start_time'].' - '.$e['end_time']) ?></small>
                 <small>⌂ <?= h($e['room_name']) ?></small>
-                <small>♙ <?= h($e['faculty_name']) ?></small>
                 <small>Yr <?= h($e['year_level']) ?> · <?= h($e['section']) ?></small>
             </div>
             <?php endforeach; ?>
@@ -129,82 +136,38 @@ foreach ($allEntries as $e) {
 
 
 <!-- ============================================= -->
-<!-- CREATE WORKLOAD MODAL (full weekly grid) -->
-<!-- ============================================= -->
-<div class="grid-modal" id="gridModal">
-    <div style="background:#fff; border-radius:10px; padding:20px; width:150vw; max-width:1300px; max-height:92vh; overflow:auto;">
-
-        <div class="schedule-toolbar" style="justify-content:flex-end;">
-            <button type="button" class="cancel-btn" id="closeGridModal">Close</button>
-        </div>
-
-        <div class="schedule-container">
-            <div class="schedule" id="schedule">
-
-                <div class="cell header" style="grid-column: 1 / 3;">Time</div>
-                <div class="cell header">Monday</div>
-                <div class="cell header">Tuesday</div>
-                <div class="cell header">Wednesday</div>
-                <div class="cell header">Thursday</div>
-                <div class="cell header">Friday</div>
-
-                <div class="cell period" style="grid-column: 1; grid-row: 2 / 12;">AM</div>
-
-                <div class="cell time" style="grid-column: 2; grid-row: 2;">7:00 - 7:30</div>
-                <div class="cell time" style="grid-column: 2; grid-row: 3;">7:30 - 8:00</div>
-                <div class="cell time" style="grid-column: 2; grid-row: 4;">8:00 - 8:30</div>
-                <div class="cell time" style="grid-column: 2; grid-row: 5;">8:30 - 9:00</div>
-                <div class="cell time" style="grid-column: 2; grid-row: 6;">9:00 - 9:30</div>
-                <div class="cell time" style="grid-column: 2; grid-row: 7;">9:30 - 10:00</div>
-                <div class="cell time" style="grid-column: 2; grid-row: 8;">10:00 - 10:30</div>
-                <div class="cell time" style="grid-column: 2; grid-row: 9;">10:30 - 11:00</div>
-                <div class="cell time" style="grid-column: 2; grid-row: 10;">11:00 - 11:30</div>
-                <div class="cell time" style="grid-column: 2; grid-row: 11;">11:30 - 12:00</div>
-
-                <div class="cell schedule-slot" data-day="Monday" data-time="7:00 - 7:30" style="grid-column:3; grid-row:2;"></div>
-                <div class="cell schedule-slot" data-day="Monday" data-time="7:30 - 8:00" style="grid-column:3; grid-row:3;"></div>
-                <div class="cell schedule-slot" data-day="Monday" data-time="8:00 - 8:30" style="grid-column:3; grid-row:4;"></div>
-                <div class="cell schedule-slot" data-day="Monday" data-time="8:30 - 9:00" style="grid-column:3; grid-row:5;"></div>
-                <div class="cell schedule-slot" data-day="Monday" data-time="9:00 - 9:30" style="grid-column:3; grid-row:6;"></div>
-                <div class="cell schedule-slot" data-day="Monday" data-time="9:30 - 10:00" style="grid-column:3; grid-row:7;"></div>
-                <div class="cell schedule-slot" data-day="Monday" data-time="10:00 - 10:30" style="grid-column:3; grid-row:8;"></div>
-                <div class="cell schedule-slot" data-day="Monday" data-time="10:30 - 11:00" style="grid-column:3; grid-row:9;"></div>
-                <div class="cell schedule-slot" data-day="Monday" data-time="11:00 - 11:30" style="grid-column:3; grid-row:10;"></div>
-                <div class="cell schedule-slot" data-day="Monday" data-time="11:30 - 12:00" style="grid-column:3; grid-row:11;"></div>
-
-                <!-- Tuesday-Friday AM + all PM slots are built by JS -->
-
-                <div class="cell lunch" style="grid-column: 1 / 8; grid-row: 12;">LUNCH BREAK</div>
-
-                <div class="cell period" style="grid-column: 1; grid-row: 13 / 25;">PM</div>
-
-                <div class="cell time" style="grid-column:2;grid-row:13;">1:00 - 1:30</div>
-                <div class="cell time" style="grid-column:2;grid-row:14;">1:30 - 2:00</div>
-                <div class="cell time" style="grid-column:2;grid-row:15;">2:00 - 2:30</div>
-                <div class="cell time" style="grid-column:2;grid-row:16;">2:30 - 3:00</div>
-                <div class="cell time" style="grid-column:2;grid-row:17;">3:00 - 3:30</div>
-                <div class="cell time" style="grid-column:2;grid-row:18;">3:30 - 4:00</div>
-                <div class="cell time" style="grid-column:2;grid-row:19;">4:00 - 4:30</div>
-                <div class="cell time" style="grid-column:2;grid-row:20;">4:30 - 5:00</div>
-                <div class="cell time" style="grid-column:2;grid-row:21;">5:00 - 5:30</div>
-                <div class="cell time" style="grid-column:2;grid-row:22;">5:30 - 6:00</div>
-                <div class="cell time" style="grid-column:2;grid-row:23;">6:00 - 6:30</div>
-                <div class="cell time" style="grid-column:2;grid-row:24;">6:30 - 7:00</div>
-
-            </div>
-        </div>
-
-    </div>
-</div>
-
-
-<!-- ============================================= -->
-<!-- WORKLOAD DETAILS FORM (year/course/faculty/room) -->
+<!-- CREATE / EDIT WORKLOAD MODAL -->
 <!-- ============================================= -->
 <div class="grid-modal" id="scheduleModal">
     <div class="modal-box">
 
         <h2 id="modalTitle">Create Workload</h2>
+
+        <div class="form-group">
+            <label>Day</label>
+            <select id="dayPicker">
+                <option value="">Select Day</option>
+                <option value="Monday">Monday</option>
+                <option value="Tuesday">Tuesday</option>
+                <option value="Wednesday">Wednesday</option>
+                <option value="Thursday">Thursday</option>
+                <option value="Friday">Friday</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Start Time</label>
+            <select id="startTime">
+                <option value="">Select Start Time</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>End Time</label>
+            <select id="endTime">
+                <option value="">Select start time first</option>
+            </select>
+        </div>
 
         <div class="form-group">
             <label>Year Level</label>
@@ -225,24 +188,17 @@ foreach ($allEntries as $e) {
         </div>
 
         <div class="form-group">
-            <label>Faculty</label>
-            <select id="faculty">
-                <option value="">Loading...</option>
-            </select>
-        </div>
-
-        <div class="form-group">
             <label>Section</label>
             <select id="section">
-                <option value="">Select Section</option>
-                <option value="BSIT-1A">BSIT-1A</option>
-                <option value="BSIT-1B">BSIT-1B</option>
-                <option value="BSIT-2A">BSIT-2A</option>
-                <option value="BSIT-2B">BSIT-2B</option>
-                <option value="BSIT-3A">BSIT-3A</option>
-                <option value="BSIT-3B">BSIT-3B</option>
-                <option value="BSIT-4A">BSIT-4A</option>
-                <option value="BSIT-4B">BSIT-4B</option>
+                <option value="">Select year level first</option>
+                <option value="BSIT-1A" data-year="1">BSIT-1A</option>
+                <option value="BSIT-1B" data-year="1">BSIT-1B</option>
+                <option value="BSIT-2A" data-year="2">BSIT-2A</option>
+                <option value="BSIT-2B" data-year="2">BSIT-2B</option>
+                <option value="BSIT-3A" data-year="3">BSIT-3A</option>
+                <option value="BSIT-3B" data-year="3">BSIT-3B</option>
+                <option value="BSIT-4A" data-year="4">BSIT-4A</option>
+                <option value="BSIT-4B" data-year="4">BSIT-4B</option>
             </select>
         </div>
 
@@ -251,12 +207,16 @@ foreach ($allEntries as $e) {
             <select id="room">
                 <option value="">Loading...</option>
             </select>
+        </div>
+
+        <div class="form-group">
             <label for="cellColor">Cell Color</label>
             <input type="color" id="cellColor" value="#67e0a3">
         </div>
 
         <div class="modal-buttons">
             <button type="button" class="cancel-btn" id="cancelBtn">Cancel</button>
+            <button type="button" class="delete-btn" id="deleteBtn" style="display:none">Delete</button>
             <button type="button" class="save-btn" id="saveBtn">Save</button>
         </div>
 
@@ -264,62 +224,85 @@ foreach ($allEntries as $e) {
 </div>
 
 
-<!-- ============================================= -->
-<!-- CARD DETAIL / SINGLE-PRINT MODAL -->
-<!-- ============================================= -->
-<div class="modal-backdrop" id="detailBackdrop"></div>
-<div class="modal" id="detailModal">
-    <button class="modal-close" id="closeDetailBtn">×</button>
-    <span class="pill" id="detailCourseCode"></span>
-    <h2 id="detailCourseName"></h2>
-    <div class="confirm-box">
-        <div><span>Schedule</span><b id="detailSchedule"></b></div>
-        <div><span>Room</span><b id="detailRoom"></b></div>
-        <div><span>Faculty</span><b id="detailFaculty"></b></div>
-        <div><span>Year / Section</span><b id="detailYearSection"></b></div>
-    </div>
-    <div class="modal-buttons">
-        <button type="button" class="save-btn full" id="printDetailBtn">🖨 Print This Schedule</button>
-    </div>
-</div>
-
-
 <script>
-document.getElementById('printStudentName')?.addEventListener('input', function(){ document.getElementById('printNameOutput').textContent = this.value || '____________________________'; });
-document.getElementById('printStudentId')?.addEventListener('input', function(){ document.getElementById('printIdOutput').textContent = this.value || '________________'; });
-document.getElementById('printYear')?.addEventListener('change', function(){
-    const y = this.value;
-    document.querySelectorAll('.schedule-item').forEach(el => { el.style.display = (y==='0' || el.dataset.year===y) ? '' : 'none'; });
-});
-
-/* ================= GRID MODAL open/close ================= */
+/* ================= Modal open/close ================= */
 const openCreateWorkload = document.getElementById('openCreateWorkload');
-const gridModal = document.getElementById('gridModal');
-const closeGridModal = document.getElementById('closeGridModal');
-
-openCreateWorkload.addEventListener('click', () => gridModal.classList.add('active'));
-closeGridModal.addEventListener('click', () => gridModal.classList.remove('active'));
-
-/* ================= DETAILS FORM MODAL ================= */
 const modal = document.getElementById("scheduleModal");
+const modalTitle = document.getElementById("modalTitle");
 const saveButton = document.getElementById("saveBtn");
 const cancelButton = document.getElementById("cancelBtn");
+const deleteButton = document.getElementById("deleteBtn");
+const dayPicker = document.getElementById("dayPicker");
 
-/* ================= Populate Faculty + Room dropdowns once ================= */
-fetch('data/get_faculty.php')
-    .then(res => res.json())
-    .then(list => {
-        const sel = document.getElementById('faculty');
-        sel.innerHTML = '<option value="">Select Faculty</option>';
-        list.forEach(f => {
-            const opt = document.createElement('option');
-            opt.value = f.faculty_id;
-            opt.textContent = f.faculty_name;
-            sel.appendChild(opt);
-        });
-    })
-    .catch(() => { document.getElementById('faculty').innerHTML = '<option value="">Failed to load</option>'; });
+let editingId = null; // null = creating a new workload; a value = editing that schedule_id
 
+function resetModalForCreate() {
+    editingId = null;
+    modalTitle.textContent = "Create Workload";
+    deleteButton.style.display = "none";
+    dayPicker.value = "";
+    document.getElementById("yearLevel").value = "";
+    document.getElementById("room").value = "";
+    document.getElementById("cellColor").value = "#67e0a3";
+    courseSelect.innerHTML = '<option value="">Select year level first</option>';
+    sectionSelect.value = "";
+    rebuildTimeOptions();
+}
+
+openCreateWorkload.addEventListener('click', () => {
+    resetModalForCreate();
+    modal.classList.add('active');
+});
+cancelButton.addEventListener('click', () => modal.classList.remove('active'));
+
+/* ================= Time dropdowns ================= */
+const TIME_SLOTS = [
+    { label: "7:00 AM",  db: "07:00:00" },
+    { label: "7:30 AM",  db: "07:30:00" },
+    { label: "8:00 AM",  db: "08:00:00" },
+    { label: "8:30 AM",  db: "08:30:00" },
+    { label: "9:00 AM",  db: "09:00:00" },
+    { label: "9:30 AM",  db: "09:30:00" },
+    { label: "10:00 AM", db: "10:00:00" },
+    { label: "10:30 AM", db: "10:30:00" },
+    { label: "11:00 AM", db: "11:00:00" },
+    { label: "11:30 AM", db: "11:30:00" },
+    { label: "12:00 PM", db: "12:00:00" },
+    { label: "1:00 PM",  db: "13:00:00" },
+    { label: "1:30 PM",  db: "13:30:00" },
+    { label: "2:00 PM",  db: "14:00:00" },
+    { label: "2:30 PM",  db: "14:30:00" },
+    { label: "3:00 PM",  db: "15:00:00" },
+    { label: "3:30 PM",  db: "15:30:00" },
+    { label: "4:00 PM",  db: "16:00:00" },
+    { label: "4:30 PM",  db: "16:30:00" },
+    { label: "5:00 PM",  db: "17:00:00" },
+    { label: "5:30 PM",  db: "17:30:00" },
+    { label: "6:00 PM",  db: "18:00:00" },
+    { label: "6:30 PM",  db: "18:30:00" },
+    { label: "7:00 PM",  db: "19:00:00" }
+];
+
+const startTimeSelect = document.getElementById("startTime");
+const endTimeSelect = document.getElementById("endTime");
+
+startTimeSelect.addEventListener("change", function () {
+    const checkedDays = dayPicker.value ? [dayPicker.value] : [];
+    const startIndex = TIME_SLOTS.findIndex(s => s.db === this.value);
+    endTimeSelect.innerHTML = '<option value="">Select End Time</option>';
+
+    if (startIndex < 0) return;
+
+    for (let i = startIndex + 1; i < TIME_SLOTS.length; i++) {
+        if (isSlotBlocked(i, checkedDays)) break;
+        const opt = document.createElement("option");
+        opt.value = TIME_SLOTS[i].db;
+        opt.textContent = TIME_SLOTS[i].label;
+        endTimeSelect.appendChild(opt);
+    }
+});
+
+/* ================= Populate Room dropdown ================= */
 fetch('data/get_rooms.php')
     .then(res => res.json())
     .then(list => {
@@ -334,18 +317,75 @@ fetch('data/get_rooms.php')
     })
     .catch(() => { document.getElementById('room').innerHTML = '<option value="">Failed to load</option>'; });
 
-/* ================= Year Level -> Course dropdown ================= */
+/* ================= Fetch existing bookings when Room changes ================= */
+let roomBookings = [];
+
+document.getElementById('room').addEventListener('change', function () {
+    const roomId = this.value;
+    if (!roomId) { roomBookings = []; return; }
+
+    fetch(`data/get_booked_times.php?room_id=${roomId}`)
+        .then(res => res.json())
+        .then(data => { roomBookings = data; rebuildTimeOptions(); })
+        .catch(() => { roomBookings = []; });
+});
+
+// While editing, the class's own existing booking must not block itself.
+function isSlotBlocked(index, checkedDays) {
+    return roomBookings.some(b => {
+        if (editingId !== null && String(b.schedule_id) === String(editingId)) return false;
+        if (!checkedDays.includes(b.day_of_week)) return false;
+        const bookedStart = TIME_SLOTS.findIndex(s => s.db === b.start_time);
+        const bookedEnd = TIME_SLOTS.findIndex(s => s.db === b.end_time);
+        if (bookedStart === -1 || bookedEnd === -1) return false;
+        return index >= bookedStart && index < bookedEnd;
+    });
+}
+
+function rebuildTimeOptions() {
+    const checkedDays = dayPicker.value ? [dayPicker.value] : [];
+    const previousValue = startTimeSelect.value;
+
+    startTimeSelect.innerHTML = '<option value="">Select Start Time</option>';
+    TIME_SLOTS.forEach((slot, i) => {
+        if (i === TIME_SLOTS.length - 1) return;
+        if (isSlotBlocked(i, checkedDays)) return;
+        const opt = document.createElement("option");
+        opt.value = slot.db;
+        opt.textContent = slot.label;
+        startTimeSelect.appendChild(opt);
+    });
+
+    if ([...startTimeSelect.options].some(o => o.value === previousValue)) {
+        startTimeSelect.value = previousValue;
+        startTimeSelect.dispatchEvent(new Event('change'));
+    } else {
+        endTimeSelect.innerHTML = '<option value="">Select start time first</option>';
+    }
+}
+
+dayPicker.addEventListener('change', rebuildTimeOptions);
+
+/* ================= Year Level -> Course + Section filtering ================= */
 const yearLevelSelect = document.getElementById("yearLevel");
 const courseSelect = document.getElementById("courseSelect");
+const sectionSelect = document.getElementById("section");
 
-yearLevelSelect.addEventListener("change", function () {
-    const year = this.value;
+function filterSections(year) {
+    const options = sectionSelect.querySelectorAll('option');
+    options.forEach(opt => {
+        if (!opt.value) return;
+        opt.style.display = (opt.dataset.year === year) ? '' : 'none';
+    });
+}
+
+function loadCoursesForYear(year, preselectCourseId) {
     if (!year) {
         courseSelect.innerHTML = '<option value="">Select year level first</option>';
-        return;
+        return Promise.resolve();
     }
     courseSelect.innerHTML = '<option value="">Loading...</option>';
-    fetch(`data/get_courses.php?year_level=${year}`)
+    return fetch(`data/get_courses.php?year_level=${year}`)
         .then(res => res.json())
         .then(courses => {
             courseSelect.innerHTML = '<option value="">Select Course</option>';
@@ -355,127 +395,46 @@ yearLevelSelect.addEventListener("change", function () {
                 opt.textContent = `${c.course_code} - ${c.course_name}`;
                 courseSelect.appendChild(opt);
             });
+            if (preselectCourseId) courseSelect.value = preselectCourseId;
         })
         .catch(() => { courseSelect.innerHTML = '<option value="">Failed to load courses</option>'; });
+}
+
+yearLevelSelect.addEventListener("change", function () {
+    const year = this.value;
+    filterSections(year);
+    sectionSelect.value = '';
+    sectionSelect.querySelector('option[value=""]').textContent = year ? 'Select Section' : 'Select year level first';
+    loadCoursesForYear(year);
 });
 
-/* ================= Build the weekly grid (Tue-Fri AM clones + all PM slots) ================= */
-let mergedSlot = null;
-let selectedSlots = [];
+/* ================= Save (create or edit) ================= */
+saveButton.addEventListener("click", function () {
+    const day = dayPicker.value;
+    const startTime = startTimeSelect.value;
+    const endTime = endTimeSelect.value;
+    const courseId = courseSelect.value;
+    const section = sectionSelect.value;
+    const roomId = document.getElementById("room").value;
+    const cellColor = document.getElementById("cellColor").value;
 
-const schedule = document.getElementById("schedule");
-const mondaySlots = [...schedule.querySelectorAll('.schedule-slot[data-day="Monday"]')];
-
-const days = ["Tuesday", "Wednesday", "Thursday", "Friday"];
-days.forEach(function (day, index) {
-    mondaySlots.forEach(function (mondaySlot) {
-        const newSlot = mondaySlot.cloneNode(true);
-        newSlot.dataset.day = day;
-        newSlot.style.gridColumn = index + 4;
-        newSlot.classList.remove("selected");
-        newSlot.classList.remove("merged");
-        newSlot.style.display = "";
-        newSlot.style.backgroundColor = "";
-        newSlot.innerHTML = "";
-        schedule.appendChild(newSlot);
-    });
-});
-
-const PM_TIMES = [
-    "1:00 - 1:30", "1:30 - 2:00", "2:00 - 2:30", "2:30 - 3:00",
-    "3:00 - 3:30", "3:30 - 4:00", "4:00 - 4:30", "4:30 - 5:00",
-    "5:00 - 5:30", "5:30 - 6:00", "6:00 - 6:30", "6:30 - 7:00"
-];
-const pmStartRow = 13;
-const pmEndRow = 24;
-const pmDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-
-pmDays.forEach(function (day, dayIndex) {
-    for (let row = pmStartRow; row <= pmEndRow; row++) {
-        const pmSlot = document.createElement("div");
-        pmSlot.classList.add("cell", "schedule-slot");
-        pmSlot.dataset.day = day;
-        pmSlot.dataset.time = PM_TIMES[row - pmStartRow];
-        pmSlot.style.gridColumn = dayIndex + 3;
-        pmSlot.style.gridRow = row;
-        schedule.appendChild(pmSlot);
-    }
-});
-
-/* ================= Cell selection ================= */
-document.addEventListener("click", function (event) {
-    const slot = event.target.closest(".schedule-slot");
-    if (!slot) return;
-
-    slot.classList.toggle("selected");
-    if (slot.classList.contains("selected")) {
-        selectedSlots.push(slot);
-    } else {
-        selectedSlots = selectedSlots.filter(item => item !== slot);
-    }
-});
-
-/* ================= After selecting time slots, open the details form ================= */
-schedule.addEventListener("dblclick", function (event) {
-    const slot = event.target.closest(".schedule-slot");
-    if (!slot) return;
-    openWorkloadForm();
-});
-
-// Simplest trigger: a small "Create Workload" button pinned inside the grid modal toolbar
-const gridToolbar = gridModal.querySelector('.schedule-toolbar');
-const createInGridBtn = document.createElement('button');
-createInGridBtn.type = 'button';
-createInGridBtn.textContent = 'Create Workload';
-createInGridBtn.className = 'primary-btn';
-gridToolbar.prepend(createInGridBtn);
-createInGridBtn.addEventListener('click', openWorkloadForm);
-
-function openWorkloadForm() {
-    if (selectedSlots.length === 0) {
-        alert("Please select a time period first.");
+    if (!day || !startTime || !endTime || !courseId || !section || !roomId) {
+        alert("Please fill in all fields.");
         return;
     }
 
-    selectedSlots.sort((a, b) => parseInt(a.style.gridRow) - parseInt(b.style.gridRow));
+    const startIndex = TIME_SLOTS.findIndex(s => s.db === startTime);
+    const endIndex = TIME_SLOTS.findIndex(s => s.db === endTime);
+    const conflict = roomBookings.some(b => {
+        if (editingId !== null && String(b.schedule_id) === String(editingId)) return false;
+        if (b.day_of_week !== day) return false;
+        const bookedStart = TIME_SLOTS.findIndex(s => s.db === b.start_time);
+        const bookedEnd = TIME_SLOTS.findIndex(s => s.db === b.end_time);
+        return startIndex < bookedEnd && endIndex > bookedStart; // any overlap at all
+    });
 
-    const firstSlot = selectedSlots[0];
-    const lastSlot = selectedSlots[selectedSlots.length - 1];
-    mergedSlot = firstSlot;
-
-    // Capture actual start/end clock times + day before we lose track of the other slots
-    const startTime = firstSlot.dataset.time.split(' - ')[0];
-    const endTime = lastSlot.dataset.time.split(' - ')[1];
-    mergedSlot.dataset.startTime = startTime;
-    mergedSlot.dataset.endTime = endTime;
-
-    for (let i = 1; i < selectedSlots.length; i++) {
-        selectedSlots[i].style.display = "none";
-    }
-
-    firstSlot.classList.remove("selected");
-    firstSlot.classList.add("merged");
-
-    const startingRow = parseInt(firstSlot.style.gridRow);
-    firstSlot.style.gridRow = startingRow + " / span " + selectedSlots.length;
-
-    selectedSlots = [];
-    modal.classList.add("active");
-}
-
-/* ================= Save: POST to this page, then reload to show the new card ================= */
-saveButton.addEventListener("click", function () {
-    const courseId = courseSelect.value;
-    const facultyId = document.getElementById("faculty").value;
-    const roomId = document.getElementById("room").value;
-    const section = document.getElementById("section").value;
-    const cellColor = document.getElementById("cellColor").value;
-    const day = mergedSlot ? mergedSlot.dataset.day : "";
-    const startTime = mergedSlot ? mergedSlot.dataset.startTime : "";
-    const endTime = mergedSlot ? mergedSlot.dataset.endTime : "";
-
-    if (!courseId || !facultyId || !roomId || !section || !day) {
-        alert("Please fill in all fields.");
+    if (conflict) {
+        alert("This time slot is already taken.");
         return;
     }
 
@@ -483,8 +442,8 @@ saveButton.addEventListener("click", function () {
     form.method = 'POST';
     form.innerHTML = `
         <input type="hidden" name="action" value="save_workload">
+        <input type="hidden" name="schedule_id" value="${editingId ?? ''}">
         <input type="hidden" name="course_id" value="${courseId}">
-        <input type="hidden" name="faculty_id" value="${facultyId}">
         <input type="hidden" name="room_id" value="${roomId}">
         <input type="hidden" name="section" value="${section}">
         <input type="hidden" name="day_of_week" value="${day}">
@@ -496,41 +455,47 @@ saveButton.addEventListener("click", function () {
     form.submit();
 });
 
-cancelButton.addEventListener("click", function () {
-    modal.classList.remove("active");
+/* ================= Delete ================= */
+deleteButton.addEventListener("click", function () {
+    if (!editingId) return;
+    if (!confirm("Delete this class from the schedule?")) return;
+    window.location.href = `schedule.php?delete=${editingId}`;
 });
 
-/* ================= Card click -> detail/print modal ================= */
-const detailModal = document.getElementById('detailModal');
-const detailBackdrop = document.getElementById('detailBackdrop');
-
+/* ================= Card click -> open modal pre-filled for editing ================= */
 document.querySelectorAll('.schedule-item').forEach(card => {
     card.addEventListener('click', function () {
-        document.getElementById('detailCourseCode').textContent = this.dataset.course;
-        document.getElementById('detailCourseName').textContent = this.dataset.name;
-        document.getElementById('detailSchedule').textContent = this.dataset.schedule;
-        document.getElementById('detailRoom').textContent = this.dataset.room;
-        document.getElementById('detailFaculty').textContent = this.dataset.faculty;
-        document.getElementById('detailYearSection').textContent = 'Year ' + this.dataset.yearlabel + ' · ' + this.dataset.section;
-        detailModal.classList.add('open');
-        detailBackdrop.classList.add('open');
+        editingId = this.dataset.scheduleId;
+        modalTitle.textContent = "Edit Workload";
+        deleteButton.style.display = "";
+
+        dayPicker.value = this.dataset.day;
+        document.getElementById("cellColor").value = this.dataset.color;
+
+        const roomSelect = document.getElementById("room");
+        roomSelect.value = this.dataset.roomId;
+
+        const year = this.dataset.year;
+        yearLevelSelect.value = year;
+        filterSections(year);
+        sectionSelect.querySelector('option[value=""]').textContent = 'Select Section';
+
+        // Room bookings must load before we can correctly build the time dropdowns
+        fetch(`data/get_booked_times.php?room_id=${this.dataset.roomId}`)
+            .then(res => res.json())
+            .then(data => {
+                roomBookings = data;
+                rebuildTimeOptions();
+                startTimeSelect.value = this.dataset.start;
+                startTimeSelect.dispatchEvent(new Event('change'));
+                endTimeSelect.value = this.dataset.end;
+            })
+            .then(() => loadCoursesForYear(year, this.dataset.courseId))
+            .then(() => { sectionSelect.value = this.dataset.section; });
+
+        modal.classList.add('active');
     });
 });
-
-document.getElementById('closeDetailBtn').addEventListener('click', () => {
-    detailModal.classList.remove('open');
-    detailBackdrop.classList.remove('open');
-});
-detailBackdrop.addEventListener('click', () => {
-    detailModal.classList.remove('open');
-    detailBackdrop.classList.remove('open');
-});
-
-document.getElementById('printDetailBtn').addEventListener('click', function () {
-    document.body.classList.add('printing-single');
-    window.print();
-});
-window.addEventListener('afterprint', () => document.body.classList.remove('printing-single'));
 </script>
 
 <?php require 'includes/footer.php'; ?>

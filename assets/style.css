@@ -41,6 +41,8 @@ a{text-decoration:none;color:inherit}
 
 .main-area{flex:1;padding:28px 32px;max-width:1200px}
 
+
+
 /* ---------- Sections & headings ---------- */
 .page-section{margin-bottom:28px}
 .section-heading{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:18px;flex-wrap:wrap;gap:10px}
@@ -243,4 +245,24 @@ tr:last-child td{border-bottom:none}
   .sidebar{width:100%;height:auto;position:relative}
   .room-grid,.course-grid,.instructor-grid,.stats-grid,.quick-grid,.schedule-grid{grid-template-columns:1fr}
   .hero{flex-direction:column;align-items:flex-start;gap:20px}
+}
+
+.logout-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    color: #ffffff;
+    text-decoration: none;
+    flex-shrink: 0;
+}
+
+.logout-icon {
+    display: block;
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    visibility: visible;
+    opacity: 1;
 }

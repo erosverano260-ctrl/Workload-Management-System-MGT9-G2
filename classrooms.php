@@ -13,16 +13,16 @@ $flash = null;
 
 // --- ADD ROOM ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'add_room') {
-    $stmt = $conn->prepare("INSERT INTO rooms (room_name, capacity) VALUES (?, ?)");
-    $stmt->bind_param("si", $_POST['room_name'], $_POST['capacity']);
+    $stmt = $conn->prepare("INSERT INTO rooms (room_code, room_name, capacity) VALUES (?, ?, ?)");
+    $stmt->bind_param("ssi", $_POST['room_code'], $_POST['room_name'], $_POST['capacity']);
     $stmt->execute();
     $flash = ['type'=>'success','msg'=>'Room added.'];
 }
 
 // --- EDIT ROOM ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'edit_room') {
-    $stmt = $conn->prepare("UPDATE rooms SET room_name=?, capacity=? WHERE room_id=?");
-    $stmt->bind_param("sii", $_POST['room_name'], $_POST['capacity'], $_POST['room_id']);
+    $stmt = $conn->prepare("UPDATE rooms SET room_code=?, room_name=?, capacity=? WHERE room_id=?");
+    $stmt->bind_param("ssii", $_POST['room_code'], $_POST['room_name'], $_POST['capacity'], $_POST['room_id']);
     $stmt->execute();
     $flash = ['type'=>'success','msg'=>'Room updated.'];
 }
@@ -45,9 +45,18 @@ if (isset($_GET['edit'])) {
     $editing = $stmt->get_result()->fetch_assoc();
 }
 
-$result = $conn->query("SELECT * FROM rooms ORDER BY room_name");
+$sql = "SELECT r.*,
+               COALESCE(SUM(TIME_TO_SEC(TIMEDIFF(s.end_time, s.start_time))) / 3600, 0) AS booked_hours
+        FROM rooms r
+        LEFT JOIN schedules s ON s.room_id = r.room_id
+        GROUP BY r.room_id
+        ORDER BY r.room_name";
+$result = $conn->query($sql);
 $rooms = $result->fetch_all(MYSQLI_ASSOC);
+
+const AVAILABLE_HOURS_PER_WEEK = 60; // 7am-7pm, 5 days a week
 ?>
+<link rel="stylesheet" href="assets/faculty_schedule.css">
 <section class="page-section">
 <div class="section-heading">
     <div><span class="eyebrow">SPACE MANAGEMENT</span><h2>Classroom availability</h2></div>
@@ -57,15 +66,22 @@ $rooms = $result->fetch_all(MYSQLI_ASSOC);
 <?php if ($flash): ?><div class="flash <?= $flash['type'] ?>"><?= h($flash['msg']) ?></div><?php endif; ?>
 
 <div class="room-grid">
-<?php foreach($rooms as $r): ?>
+<?php foreach($rooms as $r):
+    $percent = min(100, round(($r['booked_hours'] / AVAILABLE_HOURS_PER_WEEK) * 100));
+?>
 <div class="room-card">
     <div class="room-icon">⌂</div>
     <div class="room-head">
-        <div><h3><?=h($r['room_name'])?></h3></div>
+        <div><h3><?=h($r['room_name'])?></h3><small><?=h($r['room_code'])?></small></div>
     </div>
     <div class="room-numbers">
         <span><b><?=h($r['capacity'])?></b> Capacity</span>
     </div>
+    <div class="room-numbers">
+        <span><?= round($r['booked_hours'], 1) ?> of <?= AVAILABLE_HOURS_PER_WEEK ?> hrs booked this week</span>
+    </div>
+    <div class="progress wide"><span data-width="<?= $percent ?>"></span></div>
+    <small class="muted"><?= $percent ?>% utilization</small>
     <div class="course-bottom" style="margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">
         <a href="?edit=<?= $r['room_id'] ?>" class="outline-btn">Edit</a>
         <a href="?delete=<?= $r['room_id'] ?>" class="outline-btn" onclick="return confirm('Delete this room?')">Delete</a>
@@ -77,10 +93,11 @@ $rooms = $result->fetch_all(MYSQLI_ASSOC);
 
 <div class="table-card">
 <table>
-<thead><tr><th>ROOM</th><th>CAPACITY</th><th></th></tr></thead>
+<thead><tr><th>CODE</th><th>ROOM</th><th>CAPACITY</th><th></th></tr></thead>
 <tbody>
 <?php foreach($rooms as $r): ?>
 <tr>
+    <td><?=h($r['room_code'])?></td>
     <td><strong><?=h($r['room_name'])?></strong></td>
     <td><?=h($r['capacity'])?></td>
     <td>
@@ -102,6 +119,11 @@ $rooms = $result->fetch_all(MYSQLI_ASSOC);
     <form method="post">
         <input type="hidden" name="action" value="<?= $editing ? 'edit_room' : 'add_room' ?>">
         <?php if ($editing): ?><input type="hidden" name="room_id" value="<?= h($editing['room_id']) ?>"><?php endif; ?>
+
+        <div class="form-group">
+            <label>Room Code</label>
+            <input type="text" name="room_code" required value="<?= h($editing['room_code'] ?? '') ?>" placeholder="e.g. R101">
+        </div>
 
         <div class="form-group">
             <label>Room Name</label>

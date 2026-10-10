@@ -11,174 +11,10 @@ body {
 
 
 /* =========================
-   CREATE WORKLOAD BUTTON
-========================= */
-
-#createWorkloadBtn {
-    display: block;
-    margin: 0 auto 15px auto;
-    padding: 10px 18px;
-
-    border: none;
-    border-radius: 5px;
-
-    background: #4caf50;
-    color: white;
-
-    font-weight: bold;
-    cursor: pointer;
-}
-
-#createWorkloadBtn:hover {
-    background: #3e9142;
-}
-
-
-/* =========================
-   SCHEDULE
-========================= */
-
-.schedule-container {
-    width: 100%;
-    max-width: 1200px;
-    margin: auto;
-    height: 1140px;
-
-    background: white;
-
-    border: 1px solid #777;
-    border-radius: 10px;
-
-    overflow: hidden;
-}
-
-.schedule {
-    display: grid;
-
-    grid-template-columns:
-    78px 120px repeat(5, minmax(190px, 1fr));
-
-    grid-template-rows:
-        45px
-        repeat(10, 48px)
-        45px
-        repeat(12, 48px);
-
-    min-width: 900px;
-}
-
-
-/* =========================
-   CELLS
-========================= */
-
-.cell {
-    border-right: 1px solid #999;
-    border-bottom: 1px solid #999;
-
-    display: flex;
-
-    align-items: center;
-    justify-content: center;
-
-    text-align: center;
-
-    padding: 5px;
-}
-
-
-/* HEADER */
-
-.header {
-    background: #4ce0d2;
-
-    font-weight: bold;
-    font-size: 16px;
-}
-
-
-/* TIME */
-
-.time {
-    font-size: 13px;
-    background: #fafafa;
-}
-
-
-/* AM / PM */
-
-.period {
-    background: #f4d58d;
-
-    font-weight: bold;
-
-    writing-mode: vertical-rl;
-
-    transform: rotate(180deg);
-
-    letter-spacing: 3px;
-}
-
-
-/* LUNCH */
-
-.lunch {
-    background: #e8f3df;
-
-    font-weight: bold;
-
-    font-size: 15px;
-}
-
-
-/* =========================
-   SCHEDULE SLOTS
-========================= */
-
-.schedule-slot {
-    cursor: pointer;
-
-    transition: background 0.15s;
-}
-
-.schedule-slot:hover {
-    background: #f0f0f0;
-}
-
-
-/* SELECTED */
-
-.schedule-slot.selected {
-    background: #cfe3ff;
-
-    outline: 2px solid #4688c7;
-
-    outline-offset: -2px;
-}
-
-
-/* MERGED WORKLOAD */
-
-.schedule-slot.merged {
-    background: #e8e8e8;
-
-    z-index: 2;
-
-    cursor: pointer;
-}
-
-
-/* =========================
    MODAL
 ========================= */
 
-/*
-   IMPORTANT:
-   The modal is HIDDEN by default.
-*/
-
 .grid-modal {
-    display: none;
     position: fixed;
     top: 0;
     left: 0;
@@ -187,17 +23,24 @@ body {
     width: 100%;
     height: 100%;
     background: rgba(0, 0, 0, 0.5);
+    display: flex;
     justify-content: center;
     align-items: center;
     z-index: 9999;
+
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.25s ease, visibility 0s linear 0.25s;
 }
 
 .grid-modal.active {
-    display: flex;
-    visibility: visible;
     opacity: 1;
+    visibility: visible;
     pointer-events: auto;
+    transition: opacity 0.25s ease, visibility 0s linear 0s;
 }
+
 
 /* =========================
    MODAL BOX
@@ -214,6 +57,13 @@ body {
     border-radius: 8px;
 
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+
+    transform: scale(0.92) translateY(-10px);
+    transition: transform 0.25s ease;
+}
+
+.grid-modal.active .modal-box {
+    transform: scale(1) translateY(0);
 }
 
 
@@ -279,6 +129,8 @@ body {
     cursor: pointer;
 
     font-weight: bold;
+
+    transition: background-color 0.2s ease, transform 0.15s ease;
 }
 
 
@@ -290,7 +142,12 @@ body {
     color: white;
 }
 
-/* save entry */
+.save-btn:hover {
+    background: #3e9142;
+    transform: translateY(-2px);
+}
+
+/* EDIT (used on saved schedule entries) */
 .edit-workload-btn {
     margin-top: 6px;
     padding: 4px 10px;
@@ -314,8 +171,13 @@ body {
     text-align: center;
 }
 
+.cancel-btn:hover {
+    background: #c8c8c8;
+    transform: translateY(-2px);
+}
 
-/* DELETE */
+
+/* DELETE (used on saved schedule entries) */
 
 .delete-btn {
     background: #e74c3c;
@@ -323,36 +185,9 @@ body {
     color: white;
 }
 
-
-/* =========================
-   SCHEDULE ENTRY
-========================= */
-
-.entry {
-    width: 100%;
-    height: 100%;
-
-    padding: 5px;
-
-    display: flex;
-
-    flex-direction: column;
-
-    justify-content: center;
-
-    align-items: center;
-
-    cursor: pointer;
-}
-
-.entry strong {
-    font-size: 13px;
-}
-
-.entry span {
-    font-size: 11px;
-
-    margin-top: 3px;
+.delete-btn:hover {
+    background: #c0392b;
+    transform: translateY(-2px);
 }
 
 
@@ -366,9 +201,4 @@ body {
         padding: 10px;
     }
 
-    .schedule {
-        min-width: 900px;
-    }
-
 }
-
