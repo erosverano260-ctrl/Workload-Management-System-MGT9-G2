@@ -21,6 +21,14 @@ function hasOverlap(mysqli $c, string $col, int $val, string $day, string $start
     return (bool)$stmt->get_result()->fetch_row();
 }
 
+/** True if this section already has a class on that day overlapping [start,end). */
+function sectionHasOverlap(mysqli $c, string $section, string $day, string $start, string $end, int $ignoreId): bool {
+    $stmt = $c->prepare("SELECT 1 FROM schedules WHERE section = ? AND day_of_week = ? AND start_time < ? AND end_time > ? AND schedule_id <> ? LIMIT 1");
+    $stmt->bind_param('ssssi', $section, $day, $end, $start, $ignoreId);
+    $stmt->execute();
+    return (bool)$stmt->get_result()->fetch_row();
+}
+
 /* ---------- POST actions: save / delete (post → redirect → get) ---------- */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_verify();
@@ -52,6 +60,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($facultyId !== null && hasOverlap($conn, 'faculty_id', $facultyId, $day, $start, $end, $scheduleId)) {
                 flash_set('error', 'That instructor already has a class during this time.'); redirect('schedule.php');
             }
+
+            if (sectionHasOverlap($conn, $section, $day, $start, $end, $scheduleId)) {
+            flash_set('error', 'That section already has a class during this time.'); redirect('schedule.php');
+}
 
             if ($scheduleId > 0) {
                 $stmt = $conn->prepare("UPDATE schedules SET course_id=?, faculty_id=?, room_id=?, section=?, day_of_week=?, start_time=?, end_time=?, cell_color=? WHERE schedule_id=?");
@@ -177,12 +189,16 @@ foreach ($allEntries as $e) {
 
     <div class="ui-form">
       <div class="ui-grid">
-        <div class="ui-field span2">
+        <div class="ui-field">
             <label class="ui-label" for="dayPicker">Day</label>
             <select id="dayPicker">
                 <option value="">Select day</option>
                 <?php foreach ($DAYS as $d): ?><option value="<?= $d ?>"><?= $d ?></option><?php endforeach; ?>
             </select>
+        </div>
+        <div class="ui-field">
+            <label class="ui-label" for="room">Room</label>
+            <select id="room"><option value="">Loading...</option></select>
         </div>
 
         <div class="ui-field">
@@ -219,10 +235,7 @@ foreach ($allEntries as $e) {
             <select id="courseSelect"><option value="">Select year level first</option></select>
         </div>
 
-        <div class="ui-field">
-            <label class="ui-label" for="room">Room</label>
-            <select id="room"><option value="">Loading...</option></select>
-        </div>
+
         <div class="ui-field">
             <label class="ui-label" for="instructor">Instructor</label>
             <select id="instructor">
@@ -231,7 +244,7 @@ foreach ($allEntries as $e) {
             </select>
         </div>
 
-        <div class="ui-field span2">
+        <div class="ui-field">
             <label class="ui-label" for="cellColor">Cell color</label>
             <input type="color" id="cellColor" value="#67e0a3">
         </div>
@@ -463,6 +476,17 @@ yearLevelSelect.addEventListener("change", function () {
 });
 
 /* ================= Save (create or edit) ================= */
+function findScheduleClash(day, start, end, section, facultyId) {
+    for (const el of document.querySelectorAll('.schedule-item')) {
+        const d = el.dataset;
+        if (editingId !== null && String(d.scheduleId) === String(editingId)) continue; // don't clash with itself
+        if (d.day !== day || !(start < d.end && end > d.start)) continue;               // different day or no overlap
+        if (d.section === section) return 'That section already has a class during this time.';
+        if (facultyId && d.facultyId === facultyId) return 'That instructor already has a class during this time.';
+    }
+    return null;
+}
+
 saveButton.addEventListener("click", function () {
     const day = dayPicker.value;
     const startTime = startTimeSelect.value;
@@ -492,6 +516,8 @@ saveButton.addEventListener("click", function () {
         showError("That room is already booked during this time. Choose another time or room.");
         return;
     }
+    const clash = findScheduleClash(day, startTime, endTime, section, facultyId);
+    if (clash) { showError(clash); return; }
 
     saveButton.disabled = true;
     saveButton.textContent = "Saving…";

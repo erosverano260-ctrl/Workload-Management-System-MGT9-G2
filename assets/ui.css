@@ -112,6 +112,46 @@ body.ui-lock { overflow: hidden; }
 }
 .ui-hint { margin: 5px 0 0; font-size: 12px; color: var(--ui-muted); }
 
+/* Time dropdowns: open below the field, short scrollable list */
+#startTime, #endTime,
+#startTime::picker(select), #endTime::picker(select) {
+    appearance: base-select;
+}
+
+#startTime, #endTime {
+    display: flex;
+    align-items: center;          /* vertically centers the text */
+    justify-content: space-between;
+    box-sizing: border-box;
+    min-height: 42px;             /* same height as the other fields */
+    padding: 0 16px;              /* same left space as the other fields */
+    font: inherit;
+    font-size: 14px;
+    line-height: 1.2;
+}
+#startTime::picker-icon, #endTime::picker-icon {
+    font-size: 10px;
+    color: #444;
+}
+#startTime::picker(select), #endTime::picker(select) {
+    max-height: 240px;              /* about 8 rows, then scroll */
+    margin-top: 4px;
+    padding: 4px;
+    background: #fff;
+    border: 1px solid #d9dee8;
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .15);
+}
+#startTime option, #endTime option {
+    padding: 8px 12px;
+    border-radius: 6px;
+}
+#startTime option:hover, #endTime option:hover {
+    background: #fff4d6;
+}
+
+
+
 /* segmented radio (Open / Closed) and day chips */
 .ui-seg, .ui-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .ui-seg input, .ui-chips input { position: absolute; opacity: 0; pointer-events: none; }
