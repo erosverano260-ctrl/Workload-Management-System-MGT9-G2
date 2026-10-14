@@ -1,5 +1,5 @@
 </main>
 </div>
-<script src="assets/app.js"></script>
+<script src="../assets/app.js"></script>
 </body>
 </html>

@@ -42,20 +42,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    /* ---------- Add/Edit Course modal (courses.php) ---------- */
-    const courseModal = document.getElementById('courseFormModal');
-    if (courseModal) {
-        const courseBackdrop = document.getElementById('courseFormBackdrop');
-        const openBtn = document.getElementById('openAddCourse');
-        const closeBtn = document.getElementById('closeCourseForm');
-
-        openBtn?.addEventListener('click', () => { courseModal.classList.add('open'); courseBackdrop.classList.add('open'); });
-        closeBtn?.addEventListener('click', () => { courseModal.classList.remove('open'); courseBackdrop.classList.remove('open'); });
-        courseBackdrop?.addEventListener('click', () => { courseModal.classList.remove('open'); courseBackdrop.classList.remove('open'); });
-    }
-
-    
-
     /* ---------- Course search filter (courses.php) ---------- */
     document.getElementById('courseSearch')?.addEventListener('input', function () {
         const q = this.value.toLowerCase();
@@ -95,13 +81,15 @@ document.addEventListener('DOMContentLoaded', function () {
     document.querySelectorAll('form:not(#enrollForm)').forEach(f => {
         f.addEventListener('submit', function (e) {
             const msg = f.dataset.confirm;
-            if (msg && !confirm(msg)) { e.preventDefault(); return; }
+            if (e.defaultPrevented) return;
+            if (msg && !f.dataset.confirmed && !window.UI && !confirm(msg)) { e.preventDefault(); return; }
             showSpinner(f.querySelector('button[type=submit]'));
         });
     });
 
     /* ---------- Soft page-transition fade on internal navigation ---------- */
     document.addEventListener('click', function (e) {
+        if (e.defaultPrevented) return;   // FIX: a cancelled click (declined confirm, modal-opening link) must not navigate
         const a = e.target.closest('a');
         if (!a) return;
         const href = a.getAttribute('href');
@@ -121,3 +109,10 @@ function showSpinner(btn) {
     btn.innerHTML = '<span class="btn-spinner"></span> Processing…';
     btn.disabled = true;
 }
+
+// Back/forward cache: undo the fade and any stuck "Processing…" buttons.
+window.addEventListener('pageshow', e => {
+    if (!e.persisted) return;
+    document.body.classList.remove('page-fade-out');
+    document.querySelectorAll('button[data-loading]').forEach(b => { b.innerHTML = b.dataset.originalHtml; b.disabled = false; delete b.dataset.loading; });
+});
