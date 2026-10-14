@@ -1,21 +1,11 @@
 <?php
+require __DIR__ . '/../includes/db.php';
+require __DIR__ . '/../includes/auth.php';
+requireRoleApi('admin');
 header('Content-Type: application/json');
-
-require '../includes/db.php';
-
-$db = new database();
-$conn = $db->connect();
-
+$conn = (new database())->connect();
 $year = (int)($_GET['year_level'] ?? 0);
-
-$stmt = $conn->prepare("SELECT course_id, course_code, course_name FROM courses WHERE year_level = ? AND status = 'Open'");
-$stmt->bind_param("i", $year);
+$stmt = $conn->prepare("SELECT course_id, course_code, course_name FROM courses WHERE year_level = ? AND status = 'Open' ORDER BY course_code");
+$stmt->bind_param('i', $year);
 $stmt->execute();
-$result = $stmt->get_result();
-
-$courses = [];
-while ($row = $result->fetch_assoc()) {
-    $courses[] = $row;
-}
-
-echo json_encode($courses);
+echo json_encode($stmt->get_result()->fetch_all(MYSQLI_ASSOC));
