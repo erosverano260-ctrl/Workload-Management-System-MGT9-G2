@@ -1,0 +1,85 @@
+/* scheduler.css — drag-and-drop week board (admin/schedule.php) */
+.view-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 14px; }
+.view-bar select { height: 40px; padding: 0 12px; border: 1.5px solid var(--border); border-radius: 10px; background: #fff; font: inherit; font-size: 14px; color: var(--text); }
+.view-bar .hint { margin-left: auto; font-size: 12.5px; color: var(--muted); }
+.sched-layout { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 16px; align-items: start; }
+.pool { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow: auto; }
+.pool h3 { margin: 0 0 4px; font-size: 14px; color: var(--navy); }
+.pool p { margin: 0 0 10px; font-size: 12px; color: var(--muted); }
+.chip { touch-action: none; user-select: none; cursor: grab; padding: 9px 10px; margin-bottom: 8px; border: 1.5px solid var(--border); border-left: 5px solid var(--amber); border-radius: 10px; background: #fff; transition: border-color .2s, transform .2s; }
+.chip:hover { border-color: var(--amber-dark); transform: translateY(-1px); }
+.chip strong { display: block; font-size: 13px; color: var(--navy); }
+.chip span { display: block; font-size: 11.5px; color: var(--muted); }
+
+.board-wrap { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); overflow-x: auto; overflow-y: hidden; }
+.board { display: grid; grid-template-columns: 54px repeat(5, minmax(150px, 1fr)); min-width: 860px; }
+.b-head { padding: 10px 6px; text-align: center; font-weight: 700; font-size: 13px; background: var(--navy); color: #fff; border-right: 1px solid rgba(255,255,255,.12); }
+.gutter { position: relative; height: 672px; border-right: 1px solid var(--border); }
+.gutter span { position: absolute; right: 6px; font-size: 11px; line-height: 14px; color: var(--muted); transform: translateY(-50%); padding: 0 2px; }
+.gutter span:first-child { top: 3px !important; transform: none; }          /* 7 AM sits inside the board, not over the header */
+.gutter span:last-child  { transform: translateY(-100%); }                  /* 7 PM sits inside the bottom edge */
+.day-col {
+    position: relative; height: 672px; border-right: 1px solid var(--border);
+    background-image:
+        repeating-linear-gradient(to bottom, var(--border) 0, var(--border) 1px, transparent 1px, transparent 56px),
+        repeating-linear-gradient(to bottom, transparent 0, transparent 27px, #f0f2f8 27px, #f0f2f8 28px);
+}
+.lunch { position: absolute; left: 0; right: 0; top: 280px; height: 56px; display: grid; place-items: center; pointer-events: none;
+    font-size: 11px; font-weight: 700; letter-spacing: 2px; color: var(--muted);
+    background: repeating-linear-gradient(45deg, #f4f6fb, #f4f6fb 8px, #eaeef7 8px, #eaeef7 16px); }
+
+.blk { padding-bottom: 12px !important; position: absolute; left: 3px; right: 3px; z-index: 2; overflow: hidden; padding: 4px 7px; border-radius: 8px;
+    border-left: 5px solid var(--c, #67e0a3); background: color-mix(in srgb, var(--c, #67e0a3) 30%, #fff);
+    font-size: 11.5px; line-height: 1.25; cursor: grab; touch-action: none; user-select: none;
+    box-shadow: 0 1px 3px rgba(20, 33, 61, .15); transition: box-shadow .2s; }
+.blk:hover, .blk:focus-visible { box-shadow: 0 8px 18px -8px rgba(20, 33, 61, .55); outline: none; }
+.blk strong { display: block; font-size: 12.5px; color: var(--navy); }
+.blk small { display: block; font-size: 11px; color: #3b4660; }
+.blk[hidden] { display: none; }
+.blk.is-dragging { opacity: .3; }
+.blk.saving { opacity: .6; }
+.rz { position: absolute; left: 0; right: 0; bottom: 0; height: 10px; cursor: ns-resize; }
+.rz::after { content: ""; position: absolute; left: 50%; bottom: 2px; width: 22px; height: 3px; margin-left: -11px; border-radius: 3px; background: rgba(20, 33, 61, .35); }
+
+.ghost { position: absolute; left: 3px; right: 3px; z-index: 5; pointer-events: none; padding: 4px 7px; border-radius: 8px;
+    border: 2px dashed var(--amber-dark); background: rgba(255, 177, 0, .22); font-size: 11.5px; font-weight: 700; color: var(--navy); }
+.ghost.bad { border-color: var(--red); background: rgba(229, 72, 77, .18); }
+.float { position: fixed; z-index: 3000; pointer-events: none; padding: 6px 10px; border-radius: 8px; background: var(--navy); color: #fff; font-size: 12px; font-weight: 700; box-shadow: 0 10px 24px -8px rgba(0,0,0,.5); }
+body.dragging { cursor: grabbing; user-select: none; }
+.toast { position: fixed; left: 50%; bottom: 26px; z-index: 3000; transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
+    padding: 11px 18px; border-radius: 10px; background: var(--navy); color: #fff; font-size: 13.5px; font-weight: 600; transition: opacity .25s, transform .3s; }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.toast.err { background: var(--red); }
+.print-title { display: none; }
+
+@media (max-width: 1000px) { .sched-layout { grid-template-columns: 1fr; } .pool { position: static; max-height: none; } }
+@media print {
+    .sidebar, .no-print, .pool, .rz, .toast { display: none !important; }
+    .sched-layout { display: block; }
+    .main-area { padding: 0; max-width: none; }
+    .board-wrap { border: 0; overflow: visible; zoom: .8; }
+    .board { min-width: 0; }
+    .print-title { display: block; font-size: 16px; font-weight: 700; margin: 0 0 8px; color: var(--navy); }
+    .blk, .b-head, .lunch { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    @page { size: landscape; margin: 8mm; }
+}
+
+/* ---- block layouts by height: 30 min = one line, 60 min = compact, longer = full ---- */
+.blk small { overflow: hidden; text-overflow: ellipsis; }
+.blk.s1, .blk.s2 { white-space: nowrap; }
+.blk.s1 { display: flex; align-items: center; gap: 8px; padding: 0 8px 0 7px !important; }
+.blk.s1 strong { flex: none; }
+.blk.s1 small:not(.t) { display: none; }
+.blk.s1 .t { font-size: 11.5px; }
+.blk.s1 .rz { height: 6px; }
+.blk.s1 .rz::after, .blk.s2 .rz::after { display: none; }
+.blk.s1:hover .rz::after, .blk.s2:hover .rz::after { display: block; bottom: 1px; }
+.blk.s2 { padding-top: 3px; padding-bottom: 8px !important; }
+.blk.s2 small:nth-of-type(2), .blk.s2 small:nth-of-type(4) { display: none; }
+
+/* ---- class pool can be tucked away ---- */
+.view-toggle { height: 40px; padding: 0 14px; border: 1.5px solid var(--border); border-radius: 10px; background: #fff; font: inherit; font-size: 13.5px; font-weight: 600; color: var(--navy); cursor: pointer; }
+.view-toggle:hover { border-color: var(--amber-dark); background: #fff8ea; }
+.sched-layout { transition: grid-template-columns .25s ease; }
+.sched-layout.pool-hidden { grid-template-columns: minmax(0, 1fr); }
+.sched-layout.pool-hidden .pool { display: none; }
