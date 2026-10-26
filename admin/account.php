@@ -33,8 +33,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 require '../includes/header.php';
 $flash = flash_get();
 ?>
-<link rel="stylesheet" href="../assets/portal.css">
-<script src="../assets/ui.js"></script>
+<link rel="stylesheet" href="<?= asset('portal.css') ?>">
+<script src="<?= asset('ui.js') ?>"></script>
 
 <section class="page-section">
 <div class="section-heading">
