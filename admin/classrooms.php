@@ -74,8 +74,8 @@ function roomButtons(array $r): string {
         . '<button type="submit" class="outline-btn danger">Delete</button></form></div>';
 }
 ?>
-<link rel="stylesheet" href="../assets/ui.css">
-<script src="../assets/ui.js"></script>
+<link rel="stylesheet" href="<?= asset('ui.css') ?>">
+<script src="<?= asset('ui.js') ?>"></script>
 
 <section class="page-section">
 <div class="section-heading">
