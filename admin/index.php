@@ -70,8 +70,8 @@ $who = currentUserName() ?: 'Admin';
 
 require '../includes/header.php';
 ?>
-<link rel="stylesheet" href="../assets/ui.css">
-<script src="../assets/ui.js"></script>
+<link rel="stylesheet" href="<?= asset('ui.css') ?>">
+<script src="<?= asset('ui.js') ?>"></script>
 
 <section class="page-section">
   <div class="dash-welcome">
