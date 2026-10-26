@@ -77,8 +77,8 @@ $stmt->bind_param("iisss", $year, $year, $search, $search, $search);
 $stmt->execute();
 $filtered = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 ?>
-<link rel="stylesheet" href="../assets/ui.css">
-<script src="../assets/ui.js"></script>
+<link rel="stylesheet" href="<?= asset('ui.css') ?>">
+<script src="<?= asset('ui.js') ?>"></script>
 
 <section class="page-section">
 <div class="section-heading">
