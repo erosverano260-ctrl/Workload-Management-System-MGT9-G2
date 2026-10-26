@@ -21,12 +21,47 @@ function hasOverlap(mysqli $c, string $col, int $val, string $day, string $start
     return (bool)$stmt->get_result()->fetch_row();
 }
 
-/** True if this section already has a class on that day overlapping [start,end). */
-function sectionHasOverlap(mysqli $c, string $section, string $day, string $start, string $end, int $ignoreId): bool {
+/** True if this SECTION already has a class overlapping [start,end) that day (a section can't be in two places). */
+function hasSectionOverlap(mysqli $c, ?string $section, string $day, string $start, string $end, int $ignoreId): bool {
+    if ($section === null || $section === '') return false;
     $stmt = $c->prepare("SELECT 1 FROM schedules WHERE section = ? AND day_of_week = ? AND start_time < ? AND end_time > ? AND schedule_id <> ? LIMIT 1");
     $stmt->bind_param('ssssi', $section, $day, $end, $start, $ignoreId);
     $stmt->execute();
     return (bool)$stmt->get_result()->fetch_row();
+}
+
+/* ---------- AJAX: drag-and-drop move / resize. Always answers JSON, never redirects. ---------- */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'move_workload') {
+    header('Content-Type: application/json');
+    $fail = function (string $m) { echo json_encode(['ok' => false, 'error' => $m]); exit; };
+    $sent = (string)($_POST['csrf_token'] ?? '');
+    if ($sent === '' || !hash_equals(csrf_token(), $sent)) $fail('Your session expired. Refresh the page and try again.');
+
+    $id = (int)($_POST['schedule_id'] ?? 0);
+    $day = $_POST['day_of_week'] ?? ''; $start = $_POST['start_time'] ?? ''; $end = $_POST['end_time'] ?? '';
+    $okTime = preg_match('/^\d{2}:\d{2}:\d{2}$/', $start) && preg_match('/^\d{2}:\d{2}:\d{2}$/', $end)
+              && $start < $end && $start >= '07:00:00' && $end <= '19:00:00';
+    if (!in_array($day, $DAYS, true) || !$okTime) $fail('That time is not allowed.');
+
+    try {
+        $stmt = $conn->prepare("SELECT room_id, faculty_id, section FROM schedules WHERE schedule_id = ?");
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        if (!$row) $fail('That class no longer exists. Refresh the page.');
+
+        if (hasOverlap($conn, 'room_id', (int)$row['room_id'], $day, $start, $end, $id)) $fail('That room is already booked during this time.');
+        if ($row['faculty_id'] !== null && hasOverlap($conn, 'faculty_id', (int)$row['faculty_id'], $day, $start, $end, $id)) $fail('That instructor already has a class during this time.');
+        if (hasSectionOverlap($conn, $row['section'], $day, $start, $end, $id)) $fail('That section already has a class during this time.');
+
+        $stmt = $conn->prepare("UPDATE schedules SET day_of_week=?, start_time=?, end_time=? WHERE schedule_id=?");
+        $stmt->bind_param('sssi', $day, $start, $end, $id);
+        $stmt->execute();
+        echo json_encode(['ok' => true]);
+    } catch (mysqli_sql_exception $e) {
+        echo json_encode(['ok' => false, 'error' => 'Could not save that change.']);
+    }
+    exit;
 }
 
 /* ---------- POST actions: save / delete (post → redirect → get) ---------- */
@@ -60,10 +95,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($facultyId !== null && hasOverlap($conn, 'faculty_id', $facultyId, $day, $start, $end, $scheduleId)) {
                 flash_set('error', 'That instructor already has a class during this time.'); redirect('schedule.php');
             }
-
-            if (sectionHasOverlap($conn, $section, $day, $start, $end, $scheduleId)) {
-            flash_set('error', 'That section already has a class during this time.'); redirect('schedule.php');
-}
+            if (hasSectionOverlap($conn, $section, $day, $start, $end, $scheduleId)) {
+                flash_set('error', 'That section already has a class during this time.'); redirect('schedule.php');
+            }
 
             if ($scheduleId > 0) {
                 $stmt = $conn->prepare("UPDATE schedules SET course_id=?, faculty_id=?, room_id=?, section=?, day_of_week=?, start_time=?, end_time=?, cell_color=? WHERE schedule_id=?");
@@ -76,6 +110,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $stmt->execute();
             flash_set('success', $msg);
+        } elseif ($action === 'rename_sections') {
+            $conn->query("UPDATE schedules SET section = REPLACE(section, 'BSIT-', 'BSEE-') WHERE section LIKE 'BSIT-%'");
+            flash_set('success', 'Renamed ' . $conn->affected_rows . ' saved class(es) from BSIT to BSEE sections.');
         } elseif ($action === 'delete_workload') {
             $id = (int)($_POST['schedule_id'] ?? 0);
             $stmt = $conn->prepare("DELETE FROM schedules WHERE schedule_id=?");
@@ -106,66 +143,89 @@ $sql = "SELECT s.*, c.course_code, c.course_name, c.year_level, r.room_name, f.f
         ORDER BY FIELD(s.day_of_week,'Monday','Tuesday','Wednesday','Thursday','Friday'), s.start_time";
 $allEntries = $conn->query($sql)->fetch_all(MYSQLI_ASSOC);
 
+$coursesOpen = $conn->query("SELECT course_id, course_code, course_name, year_level, units FROM courses WHERE status='Open' ORDER BY course_code")->fetch_all(MYSQLI_ASSOC);
+$roomsList   = $conn->query("SELECT room_id, room_name FROM rooms ORDER BY room_name")->fetch_all(MYSQLI_ASSOC);
+
 $byDay = array_fill_keys($DAYS, []);
 foreach ($allEntries as $e) {
     if (isset($byDay[$e['day_of_week']])) $byDay[$e['day_of_week']][] = $e;
 }
 ?>
 
-<link rel="stylesheet" href="../assets/ui.css">
-<script src="../assets/ui.js"></script>
+<link rel="stylesheet" href="<?= asset('ui.css') ?>">
+<script src="<?= asset('ui.js') ?>"></script>
 
-<style>
-    .schedule-toolbar-row { display: flex; gap: 10px; }
-    @media print { .schedule-toolbar-row, .ui-modal { display: none !important; } }
-</style>
+<link rel="stylesheet" href="<?= asset('scheduler.css') ?>">
+<style>.schedule-toolbar-row { display: flex; gap: 10px; }</style>
 
 <section class="page-section">
-<div class="section-heading">
-    <div><span class="eyebrow">SCHEDULE MANAGER</span><h2>Ready-to-print class schedule</h2></div>
+<div class="section-heading no-print">
+    <div><span class="eyebrow">SCHEDULE MANAGER</span><h2>Drag-and-drop class schedule</h2></div>
     <div class="schedule-toolbar-row">
         <button class="primary-btn" id="openCreateWorkload" type="button">+ Create Workload</button>
-        <button class="primary-btn print-btn" type="button" onclick="window.print()">🖨 Print Schedule</button>
+        <button class="primary-btn print-btn" type="button" onclick="window.print()">🖨 Print this view</button>
     </div>
 </div>
 
-<?php if ($flash): ?><div class="flash <?= h($flash['type']) ?>"><?= h($flash['msg']) ?></div><?php endif; ?>
+<?php if ($flash): ?><div class="flash <?= h($flash['type']) ?> no-print"><?= h($flash['msg']) ?></div><?php endif; ?>
 
-<div class="printable-schedule" id="printableSchedule">
-    <div class="schedule-grid">
-    <?php foreach ($byDay as $day => $entries): ?>
-        <div class="day-column">
-            <div class="day-title"><?= h($day) ?></div>
-            <?php foreach ($entries as $e): ?>
-            <div class="schedule-item" tabindex="0" role="button" title="Click to edit"
-                 data-schedule-id="<?= h($e['schedule_id']) ?>"
-                 data-course-id="<?= h($e['course_id']) ?>"
-                 data-room-id="<?= h($e['room_id']) ?>"
-                 data-faculty-id="<?= h($e['faculty_id']) ?>"
-                 data-day="<?= h($e['day_of_week']) ?>"
-                 data-start="<?= h($e['start_time']) ?>"
-                 data-end="<?= h($e['end_time']) ?>"
-                 data-color="<?= h($e['cell_color']) ?>"
-                 data-year="<?= h($e['year_level']) ?>"
-                 data-section="<?= h($e['section']) ?>"
-                 data-course="<?= h($e['course_code']) ?>"
-                 data-name="<?= h($e['course_name']) ?>"
-                 data-room="<?= h($e['room_name']) ?>"
-                 style="border-left:4px solid <?= h($e['cell_color']) ?>">
-                <span class="code"><?= h($e['course_code']) ?></span>
-                <strong><?= h($e['course_name']) ?></strong>
-                <small><?= h(substr($e['start_time'],0,5).' - '.substr($e['end_time'],0,5)) ?></small>
-                <small>⌂ <?= h($e['room_name']) ?></small>
-                <small>Yr <?= h($e['year_level']) ?> · <?= h($e['section']) ?></small>
-                <?php if ($e['faculty_name']): ?><small>♙ <?= h($e['faculty_name']) ?></small><?php endif; ?>
-            </div>
-            <?php endforeach; ?>
-            <?php if (!$entries): ?><div class="no-class">No scheduled class</div><?php endif; ?>
+<?php $oldSections = (int)$conn->query("SELECT COUNT(*) AS n FROM schedules WHERE section LIKE 'BSIT-%'")->fetch_assoc()['n']; ?>
+<?php if ($oldSections): ?>
+<form method="post" class="ui-notice no-print" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+    <?= csrf_field() ?><input type="hidden" name="action" value="rename_sections">
+    <span><strong><?= $oldSections ?> saved class<?= $oldSections === 1 ? '' : 'es' ?></strong> still use the old <code>BSIT-</code> section names, so they print as BSIT.</span>
+    <button type="submit" class="primary-btn">Rename them to BSEE</button>
+</form>
+<?php endif; ?>
+
+<div class="view-bar no-print">
+    <label>View by
+        <select id="viewBy"><option value="section">Section</option><option value="faculty">Instructor</option><option value="room">Room</option></select>
+    </label>
+    <select id="viewVal" aria-label="Which one"></select>
+    <button type="button" class="view-toggle" id="poolToggle" aria-expanded="true">☰ Class pool</button>
+    <span class="hint">Drag a class to move it · drag its bottom edge to resize · click to edit</span>
+</div>
+
+<div class="sched-layout">
+  <aside class="pool no-print" id="pool"></aside>
+
+  <div class="board-wrap" id="printableSchedule">
+    <div class="print-title" id="printTitle"></div>
+    <div class="board" id="board">
+      <div class="b-head"></div>
+      <?php foreach ($DAYS as $d): ?><div class="b-head"><?= h($d) ?></div><?php endforeach; ?>
+
+      <div class="gutter">
+        <?php for ($hr = 7; $hr <= 19; $hr++): ?><span style="top:<?= ($hr - 7) * 56 ?>px"><?= ($hr % 12 ?: 12) . ($hr >= 12 ? ' PM' : ' AM') ?></span><?php endfor; ?>
+      </div>
+
+      <?php foreach ($byDay as $day => $entries): ?>
+      <div class="day-col" data-day="<?= h($day) ?>">
+        <div class="lunch">LUNCH</div>
+        <?php foreach ($entries as $e): ?>
+        <div class="blk" tabindex="0" role="button" title="Drag to move · drag bottom edge to resize · click to edit"
+             data-schedule-id="<?= h($e['schedule_id']) ?>" data-course-id="<?= h($e['course_id']) ?>" data-room-id="<?= h($e['room_id']) ?>"
+             data-faculty-id="<?= h($e['faculty_id']) ?>" data-day="<?= h($e['day_of_week']) ?>"
+             data-start="<?= h($e['start_time']) ?>" data-end="<?= h($e['end_time']) ?>" data-color="<?= h($e['cell_color']) ?>"
+             data-year="<?= h($e['year_level']) ?>" data-section="<?= h($e['section']) ?>"
+             data-course="<?= h($e['course_code']) ?>" data-name="<?= h($e['course_name']) ?>" data-room="<?= h($e['room_name']) ?>"
+             style="--c:<?= h($e['cell_color'] ?: '#67e0a3') ?>">
+          <strong><?= h($e['course_code']) ?></strong>
+          <small class="t"></small>
+          <small><?= h($e['course_name']) ?></small>
+          <small>⌂ <?= h($e['room_name']) ?><?php if ($e['faculty_name']): ?> · ♙ <?= h($e['faculty_name']) ?><?php endif; ?></small>
+          <small><?= h($e['section']) ?></small>
+          <span class="rz"></span>
         </div>
-    <?php endforeach; ?>
+        <?php endforeach; ?>
+      </div>
+      <?php endforeach; ?>
     </div>
+  </div>
 </div>
 </section>
+<div class="toast" id="toast" role="status"></div>
 
 
 <!-- ============================================= -->
@@ -189,16 +249,12 @@ foreach ($allEntries as $e) {
 
     <div class="ui-form">
       <div class="ui-grid">
-        <div class="ui-field">
+        <div class="ui-field span2">
             <label class="ui-label" for="dayPicker">Day</label>
             <select id="dayPicker">
                 <option value="">Select day</option>
                 <?php foreach ($DAYS as $d): ?><option value="<?= $d ?>"><?= $d ?></option><?php endforeach; ?>
             </select>
-        </div>
-        <div class="ui-field">
-            <label class="ui-label" for="room">Room</label>
-            <select id="room"><option value="">Loading...</option></select>
         </div>
 
         <div class="ui-field">
@@ -235,7 +291,10 @@ foreach ($allEntries as $e) {
             <select id="courseSelect"><option value="">Select year level first</option></select>
         </div>
 
-
+        <div class="ui-field">
+            <label class="ui-label" for="room">Room</label>
+            <select id="room"><option value="">Loading...</option></select>
+        </div>
         <div class="ui-field">
             <label class="ui-label" for="instructor">Instructor</label>
             <select id="instructor">
@@ -244,7 +303,7 @@ foreach ($allEntries as $e) {
             </select>
         </div>
 
-        <div class="ui-field">
+        <div class="ui-field span2">
             <label class="ui-label" for="cellColor">Cell color</label>
             <input type="color" id="cellColor" value="#67e0a3">
         </div>
@@ -414,6 +473,7 @@ function isSlotBlocked(index, checkedDays) {
 function rebuildTimeOptions() {
     const checkedDays = dayPicker.value ? [dayPicker.value] : [];
     const previousValue = startTimeSelect.value;
+    const previousEnd = endTimeSelect.value;
 
     startTimeSelect.innerHTML = '<option value="">Select Start Time</option>';
     TIME_SLOTS.forEach((slot, i) => {
@@ -428,6 +488,7 @@ function rebuildTimeOptions() {
     if ([...startTimeSelect.options].some(o => o.value === previousValue && o.value)) {
         startTimeSelect.value = previousValue;
         startTimeSelect.dispatchEvent(new Event('change'));
+        if (previousEnd && [...endTimeSelect.options].some(o => o.value === previousEnd)) endTimeSelect.value = previousEnd;
     } else {
         endTimeSelect.innerHTML = '<option value="">Select start time first</option>';
     }
@@ -476,17 +537,6 @@ yearLevelSelect.addEventListener("change", function () {
 });
 
 /* ================= Save (create or edit) ================= */
-function findScheduleClash(day, start, end, section, facultyId) {
-    for (const el of document.querySelectorAll('.schedule-item')) {
-        const d = el.dataset;
-        if (editingId !== null && String(d.scheduleId) === String(editingId)) continue; // don't clash with itself
-        if (d.day !== day || !(start < d.end && end > d.start)) continue;               // different day or no overlap
-        if (d.section === section) return 'That section already has a class during this time.';
-        if (facultyId && d.facultyId === facultyId) return 'That instructor already has a class during this time.';
-    }
-    return null;
-}
-
 saveButton.addEventListener("click", function () {
     const day = dayPicker.value;
     const startTime = startTimeSelect.value;
@@ -516,8 +566,6 @@ saveButton.addEventListener("click", function () {
         showError("That room is already booked during this time. Choose another time or room.");
         return;
     }
-    const clash = findScheduleClash(day, startTime, endTime, section, facultyId);
-    if (clash) { showError(clash); return; }
 
     saveButton.disabled = true;
     saveButton.textContent = "Saving…";
@@ -596,10 +644,233 @@ function openEdit(card) {
         });
 }
 
-document.querySelectorAll('.schedule-item').forEach(card => {
-    card.addEventListener('click', () => openEdit(card));
-    card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openEdit(card); } });
+/* ================= Drag-and-drop board ================= */
+const DATA = <?= json_encode(['courses' => $coursesOpen, 'rooms' => $roomsList, 'faculty' => $faculty], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+const board = document.getElementById('board');
+const cols = [...board.querySelectorAll('.day-col')];
+const viewBy = document.getElementById('viewBy'), viewVal = document.getElementById('viewVal');
+const pool = document.getElementById('pool'), toastEl = document.getElementById('toast');
+const ROWH = 28, T0 = 420, TEND = 1140, LUNCH_A = 720, LUNCH_B = 780;   // 7:00 AM … 7:00 PM, 28px per 30 min, lunch 12–1
+
+const blocks  = () => [...board.querySelectorAll('.blk')];
+const fromDb  = t => +t.slice(0, 2) * 60 + +t.slice(3, 5);
+const toDb    = m => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0') + ':00';
+const fmt     = m => { const h = Math.floor(m / 60); return ((h % 12) || 12) + ':' + String(m % 60).padStart(2, '0') + (h >= 12 ? ' PM' : ' AM'); };
+const yOf     = m => (m - T0) / 30 * ROWH;
+const rangeOk = (s, e) => e > s && s >= T0 && e <= TEND && (e <= LUNCH_A || s >= LUNCH_B);
+
+function toast(msg, bad) {
+    toastEl.textContent = msg; toastEl.className = 'toast show' + (bad ? ' err' : '');
+    clearTimeout(toast.t); toast.t = setTimeout(() => toastEl.className = 'toast', 2800);
+}
+function place(b) {
+    const s = fromDb(b.dataset.start), e = fromDb(b.dataset.end);
+    b.style.top = yOf(s) + 'px'; b.style.height = (yOf(e) - yOf(s) - 2) + 'px';
+    b.querySelector('.t').textContent = fmt(s) + ' – ' + fmt(e);
+    b.classList.toggle('s1', e - s <= 30);
+    b.classList.toggle('s2', e - s > 30 && e - s <= 60);
+    const d = b.dataset;
+    b.title = [d.course + ' · ' + fmt(s) + ' – ' + fmt(e), d.name, d.room, d.section].filter(Boolean).join('\n') + '\n(drag to move · drag bottom edge to resize · click to edit)';
+}
+blocks().forEach(place);
+
+/* any other class using the same room / instructor / section at that time? (server re-checks everything) */
+function clash(day, s, e, ignoreId, meta) {
+    for (const b of blocks()) {
+        const d = b.dataset;
+        if (d.scheduleId === String(ignoreId) || d.day !== day) continue;
+        if (!(s < fromDb(d.end) && e > fromDb(d.start))) continue;
+        if (meta.room    && d.roomId === String(meta.room))       return 'That room is already booked at that time.';
+        if (meta.faculty && d.facultyId === String(meta.faculty)) return 'That instructor already has a class then.';
+        if (meta.section && d.section === meta.section)           return 'This section already has a class then.';
+    }
+    return '';
+}
+
+/* ---------- "View by" filter + class pool ---------- */
+const sectionOpts = [...sectionSelect.options].filter(o => o.value).map(o => ({ v: o.value, t: o.textContent, year: o.dataset.year }));
+const sectionYear = s => (sectionOpts.find(o => o.v === s) || {}).year;
+const keyOf = b => viewBy.value === 'section' ? b.dataset.section : viewBy.value === 'faculty' ? (b.dataset.facultyId || 'none') : b.dataset.roomId;
+
+function viewOptions() {
+    if (viewBy.value === 'section') {
+        const extra = [...new Set(blocks().map(b => b.dataset.section))].filter(x => x && !sectionOpts.some(o => o.v === x));
+        return sectionOpts.map(o => [o.v, o.t]).concat(extra.map(x => [x, x]));
+    }
+    if (viewBy.value === 'faculty') return DATA.faculty.map(f => [String(f.faculty_id), f.faculty_name]).concat([['none', 'Unassigned']]);
+    return DATA.rooms.map(r => [String(r.room_id), r.room_name]);
+}
+function applyView(keep) {
+    if (!keep) {
+        const opts = viewOptions();
+        viewVal.innerHTML = '';
+        opts.forEach(([v, t]) => viewVal.add(new Option(t, v)));
+        const first = opts.find(([v]) => blocks().some(b => keyOf(b) === v));
+        if (first) viewVal.value = first[0];
+    }
+    blocks().forEach(b => b.hidden = keyOf(b) !== viewVal.value);
+    const sel = viewVal.options[viewVal.selectedIndex];
+    document.getElementById('printTitle').textContent = (sel ? sel.text : '') + ' — Weekly class schedule';
+    renderPool();
+    try { localStorage.setItem('schedView', JSON.stringify([viewBy.value, viewVal.value])); } catch (e) {}
+}
+function renderPool() {
+    pool.innerHTML = '';
+    const h = document.createElement('h3'), p = document.createElement('p');
+    pool.append(h, p);
+    if (viewBy.value !== 'section') {
+        h.textContent = 'Class pool';
+        p.textContent = 'Switch "View by" to Section to drag new classes onto the week. You can still move and resize classes in this view.';
+        return;
+    }
+    const sec = viewVal.value, yr = sectionYear(sec);
+    h.textContent = (sec || 'Section') + ' · class pool';
+    const list = DATA.courses.filter(c => String(c.year_level) === String(yr));
+    p.textContent = list.length ? 'Drag a course onto the week.' : 'No open courses for this year level.';
+    list.forEach(c => {
+        const mins = blocks().filter(b => b.dataset.section === sec && b.dataset.courseId === String(c.course_id))
+                             .reduce((a, b) => a + fromDb(b.dataset.end) - fromDb(b.dataset.start), 0);
+        const el = document.createElement('div'); el.className = 'chip';
+        const a = document.createElement('strong'), n = document.createElement('span'), m = document.createElement('span');
+        a.textContent = c.course_code; n.textContent = c.course_name;
+        m.textContent = c.units + ' units · ' + (mins / 60) + ' h scheduled';
+        el.append(a, n, m);
+        el.addEventListener('pointerdown', e => startDrag(e, { type: 'new', course: c, section: sec, el }));
+        pool.appendChild(el);
+    });
+}
+viewBy.addEventListener('change', () => applyView());
+viewVal.addEventListener('change', () => applyView(true));
+
+/* ---------- Pointer-based drag engine (mouse + touch) ---------- */
+let drag = null;
+const ghost = document.createElement('div');
+
+function startDrag(e, d) {
+    if (e.button !== undefined && e.button !== 0) return;
+    e.preventDefault();
+    drag = Object.assign({ sx: e.clientX, sy: e.clientY, moved: false, tgt: null, offY: ROWH / 2 }, d);
+    if (d.type !== 'new') {
+        drag.offY = e.clientY - d.el.getBoundingClientRect().top;
+        drag.s = fromDb(d.el.dataset.start); drag.e = fromDb(d.el.dataset.end); drag.dur = drag.e - drag.s;
+    }
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', endDrag);
+}
+function endDrag() {
+    ghost.remove();
+    if (drag) { if (drag.float) drag.float.remove(); if (drag.type === 'move') drag.el.classList.remove('is-dragging'); }
+    document.body.classList.remove('dragging');
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    document.removeEventListener('pointercancel', endDrag);
+    drag = null;
+}
+function colAt(x) { return cols.find(c => { const r = c.getBoundingClientRect(); return x >= r.left && x < r.right; }); }
+
+function target(e) {
+    if (drag.type === 'resize') {
+        const col = drag.el.parentElement, r = col.getBoundingClientRect();
+        let end = T0 + Math.round((e.clientY - r.top) / ROWH) * 30;
+        end = Math.max(drag.s + 30, Math.min(end, TEND));
+        return { col, day: col.dataset.day, s: drag.s, e: end };
+    }
+    const col = colAt(e.clientX); if (!col) return null;
+    const r = col.getBoundingClientRect();
+    let s = T0 + Math.round((e.clientY - r.top - drag.offY) / ROWH) * 30;
+    let dur = drag.type === 'new' ? 90 : drag.dur;
+    s = Math.max(T0, Math.min(s, TEND - (drag.type === 'new' ? 30 : dur)));
+    if (drag.type === 'new') { if (s < LUNCH_A && s + dur > LUNCH_A) dur = LUNCH_A - s; if (s + dur > TEND) dur = TEND - s; }
+    return { col, day: col.dataset.day, s, e: s + dur };
+}
+function verdict(t) {
+    if (!t) return 'Drop it on a day column.';
+    if (!rangeOk(t.s, t.e)) return 'Classes can\u2019t overlap lunch (12\u20131 PM) or run outside 7 AM\u20137 PM.';
+    if (drag.type === 'new') return clash(t.day, t.s, t.e, '', { section: drag.section });
+    const d = drag.el.dataset;
+    return clash(t.day, t.s, t.e, d.scheduleId, { room: d.roomId, faculty: d.facultyId, section: d.section });
+}
+function onMove(e) {
+    if (!drag) return;
+    if (!drag.moved) {
+        if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 5) return;
+        drag.moved = true; document.body.classList.add('dragging');
+        if (drag.type === 'move') drag.el.classList.add('is-dragging');
+        if (drag.type === 'new') { drag.float = document.createElement('div'); drag.float.className = 'float'; drag.float.textContent = drag.course.course_code; document.body.appendChild(drag.float); }
+    }
+    if (drag.float) { drag.float.style.left = (e.clientX + 12) + 'px'; drag.float.style.top = (e.clientY + 12) + 'px'; }
+    const t = target(e); drag.tgt = t;
+    if (!t) { ghost.remove(); return; }
+    t.msg = verdict(t);
+    t.col.appendChild(ghost);
+    ghost.className = 'ghost' + (t.msg ? ' bad' : '');
+    ghost.style.top = yOf(t.s) + 'px'; ghost.style.height = (yOf(t.e) - yOf(t.s) - 2) + 'px';
+    ghost.textContent = fmt(t.s) + ' \u2013 ' + fmt(t.e);
+}
+function onUp() {
+    const d = drag; endDrag();
+    if (!d) return;
+    if (!d.moved) { if (d.type === 'move') openEdit(d.el); return; }       // a plain click opens the edit form
+    const t = d.tgt;
+    if (!t) return;
+    if (t.msg) { toast(t.msg, true); return; }
+    if (d.type === 'new') { openCreateFromDrop(t, d); return; }
+    if (t.day === d.el.dataset.day && t.s === d.s && t.e === d.e) return;
+    saveMove(d.el, t);
+}
+
+function saveMove(el, t) {
+    const fd = new FormData();
+    fd.append('csrf_token', CSRF); fd.append('action', 'move_workload'); fd.append('schedule_id', el.dataset.scheduleId);
+    fd.append('day_of_week', t.day); fd.append('start_time', toDb(t.s)); fd.append('end_time', toDb(t.e));
+    el.classList.add('saving');
+    fetch('schedule.php', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(res => {
+            el.classList.remove('saving');
+            if (!res.ok) { toast(res.error || 'Could not move that class.', true); return; }
+            el.dataset.day = t.day; el.dataset.start = toDb(t.s); el.dataset.end = toDb(t.e);
+            t.col.appendChild(el); place(el); renderPool(); toast('Saved');
+        })
+        .catch(() => { el.classList.remove('saving'); toast('Network error \u2014 nothing was changed.', true); });
+}
+
+/* Dropping a course from the pool opens the normal form, pre-filled; room + instructor are picked there. */
+function openCreateFromDrop(t, d) {
+    resetModalForCreate();
+    const year = sectionYear(d.section) || '';
+    dayPicker.value = t.day;
+    yearLevelSelect.value = year;
+    filterSections(String(year));
+    sectionSelect.querySelector('option[value=""]').textContent = 'Select Section';
+    sectionSelect.value = d.section;
+    rebuildTimeOptions();
+    startTimeSelect.value = toDb(t.s);
+    startTimeSelect.dispatchEvent(new Event('change'));
+    endTimeSelect.value = toDb(t.e);
+    refreshTicket();
+    UI.open(modal);
+    loadCoursesForYear(year, d.course.course_id).then(refreshTicket);
+}
+
+blocks().forEach(b => {
+    b.addEventListener('pointerdown', e => startDrag(e, { type: 'move', el: b }));
+    b.querySelector('.rz').addEventListener('pointerdown', e => { e.stopPropagation(); startDrag(e, { type: 'resize', el: b }); });
+    b.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openEdit(b); } });
 });
+
+/* class pool: show / hide (remembered) */
+const layoutEl = document.querySelector('.sched-layout'), poolBtn = document.getElementById('poolToggle');
+function setPool(hidden) { layoutEl.classList.toggle('pool-hidden', hidden); poolBtn.setAttribute('aria-expanded', String(!hidden)); try { localStorage.setItem('poolHidden', hidden ? '1' : '0'); } catch (e) {} }
+poolBtn.addEventListener('click', () => setPool(!layoutEl.classList.contains('pool-hidden')));
+try { if (localStorage.getItem('poolHidden') === '1') setPool(true); } catch (e) {}
+
+/* restore the last view */
+let saved = null; try { saved = JSON.parse(localStorage.getItem('schedView')); } catch (e) {}
+if (saved && ['section', 'faculty', 'room'].includes(saved[0])) viewBy.value = saved[0];
+applyView();
+if (saved && [...viewVal.options].some(o => o.value === saved[1])) { viewVal.value = saved[1]; applyView(true); }
 
 refreshTicket();
 </script>
