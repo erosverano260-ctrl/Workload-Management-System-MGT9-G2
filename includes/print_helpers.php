@@ -9,6 +9,9 @@ function pcfg(): array { static $c = null; if ($c === null) $c = require __DIR__
 function section_label(?string $s): string { return strtr((string)$s, pcfg()['section_aliases'] ?? []); }
 
 function is_lab(string $code): bool { return (bool)preg_match('/\dL$/i', trim($code)); }
+/** Lab or lecture for one schedule row. Old rows fall back to the course-code "L" rule. */
+function entry_is_lab(array $e): bool { return ($e['class_type'] ?? 'Lecture') === 'Laboratory' || is_lab($e['course_code']); }
+function type_tag(array $e): string { return entry_is_lab($e) ? 'Lab' : 'Lec'; }
 
 /** "Engr. Ramon Torres" -> "R.Torres" */
 function short_name(?string $n): string {
@@ -30,7 +33,7 @@ function tint(?string $hex, float $w = 0.55): string {
 function merge_adjacent(array $rows): array {
     $out = []; $open = [];
     foreach ($rows as $r) {
-        $k = implode('|', [$r['day_of_week'], $r['course_id'], $r['room_id'], $r['section'], $r['faculty_id']]);
+        $k = implode('|', [$r['day_of_week'], $r['course_id'], $r['room_id'], $r['section'], $r['faculty_id'], $r['class_type']]);
         if (isset($open[$k]) && $out[$open[$k]]['end_time'] === $r['start_time']) { $out[$open[$k]]['end_time'] = $r['end_time']; continue; }
         $out[] = $r; $open[$k] = count($out) - 1;
     }
@@ -40,7 +43,7 @@ function merge_adjacent(array $rows): array {
 /** Classes with course/room/instructor names. $by = 'section' | 'faculty' | 'room' | '' (everything). */
 function load_program_entries(mysqli $c, string $by = '', $val = null): array {
     $cols = ['section' => ['s.section', 's'], 'faculty' => ['s.faculty_id', 'i'], 'room' => ['s.room_id', 'i']];
-    $sql = "SELECT s.schedule_id, s.course_id, s.faculty_id, s.room_id, s.section, s.day_of_week, s.start_time, s.end_time, s.cell_color,
+    $sql = "SELECT s.schedule_id, s.course_id, s.faculty_id, s.room_id, s.section, s.class_type, s.day_of_week, s.start_time, s.end_time, s.cell_color,
                    c.course_code, c.course_name, c.units, c.year_level, r.room_name, f.faculty_name
             FROM schedules s
             JOIN courses c ON c.course_id = s.course_id
@@ -59,14 +62,21 @@ function load_program_entries(mysqli $c, string $by = '', $val = null): array {
 
 /** One row per subject+section with lecture/lab hours, plus the load maths used by the workload matrix (lab hours count x0.7). */
 function workload_summary(array $entries): array {
+    // 1) one row per subject + section + type (lecture / lab); the workload matrix uses these
     $rows = [];
     foreach ($entries as $e) {
-        $k = $e['course_code'] . '|' . $e['section'];
+        $isLab = entry_is_lab($e);
+        $k = $e['course_code'] . '|' . $e['section'] . '|' . ($isLab ? 'lab' : 'lec');
         if (!isset($rows[$k])) $rows[$k] = ['code' => $e['course_code'], 'name' => $e['course_name'], 'section' => $e['section'],
-                                            'units' => (float)$e['units'], 'mins' => 0, 'rooms' => [], 'lab' => is_lab($e['course_code'])];
+                                            'units' => (float)$e['units'], 'mins' => 0, 'rooms' => [], 'lab' => $isLab];
         $rows[$k]['mins'] += timeToMin($e['end_time']) - timeToMin($e['start_time']);
         $rows[$k]['rooms'][$e['room_name']] = true;
     }
+    // A subject with both a lecture and a lab block: count its units once (on the lecture row).
+    foreach (array_keys($rows) as $k) {
+        if ($rows[$k]['lab'] && isset($rows[substr($k, 0, -3) . 'lec'])) $rows[$k]['units'] = 0.0;
+    }
+
     $lec = $lab = $unitsLec = $unitsLab = 0.0; $preps = [];
     foreach ($rows as &$r) {
         $r['hrs'] = $r['mins'] / 60;
@@ -76,12 +86,22 @@ function workload_summary(array $entries): array {
         $preps[strtoupper(preg_replace('/\s*L$/i', '', trim($r['code'])))] = true;
     }
     unset($r);
+
+    // 2) one row per subject + section holding BOTH lecture and lab hours; the instructor's class program uses these
+    $subjects = [];
+    foreach ($rows as $row) {
+        $k = $row['code'] . '|' . $row['section'];
+        if (!isset($subjects[$k])) $subjects[$k] = ['code' => $row['code'], 'name' => $row['name'], 'section' => $row['section'], 'lecHrs' => 0.0, 'labHrs' => 0.0];
+        if ($row['lab']) $subjects[$k]['labHrs'] += $row['hrs']; else $subjects[$k]['lecHrs'] += $row['hrs'];
+    }
+
     $np = count($preps);
-    $allowed = $np >= 5 ? 15 : ($np >= 3 ? 18 : 21);          // regular load by number of preparations (from the HAIDE matrix)
+    $allowed = $np >= 5 ? 15 : ($np >= 3 ? 18 : 21);          // regular load by number of preparations
     $comp = $lec + 0.7 * $lab;
-    return ['rows' => array_values($rows), 'lec' => $lec, 'lab' => $lab, 'units' => $unitsLec + $unitsLab, 'unitsLec' => $unitsLec, 'unitsLab' => $unitsLab,
+    return ['rows' => array_values($rows), 'subjects' => array_values($subjects), 'lec' => $lec, 'lab' => $lab, 'units' => $unitsLec + $unitsLab, 'unitsLec' => $unitsLec, 'unitsLab' => $unitsLab,
             'preps' => $np, 'allowed' => $allowed, 'comp' => round($comp, 1), 'overload' => round($comp - $allowed, 1)];
 }
+
 
 function nf($n): string { $n = round((float)$n, 1); return $n == (int)$n ? (string)(int)$n : (string)$n; }
 
@@ -162,7 +182,7 @@ function timetable_html(array $entries, callable $lines, array $days = FAC_DAYS,
 /* ====================== 1. INSTRUCTOR'S CLASS PROGRAM ====================== */
 function render_instructor_program(array $inst, array $entries): void {
     $c = pcfg(); $w = workload_summary($entries);
-    $blank = max(0, 8 - count($w['rows']));
+    $blank = max(0, 8 - count($w['subjects']));
     $remarks = [['No. of Preparations:', (string)$w['preps']], ['Service Credits:', ''], ['Teaching Overload:', nf($w['overload'])]];
 ?>
 <div class="sheet sheet-instructor">
@@ -172,17 +192,17 @@ function render_instructor_program(array $inst, array $entries): void {
     <tr><td class="k">Academic Rank:</td><td class="ul"></td><td class="k">Department:</td><td class="ul b"><?= h($c['department']) ?></td></tr>
     <tr><td></td><td></td><td class="k">College:</td><td class="ul"><?= h($c['college_short']) ?></td></tr>
   </table>
-  <?= timetable_html($entries, fn($e) => [$e['course_code'], $e['section'], short_name($e['faculty_name']), $e['room_name']]) ?>
+  <?= timetable_html($entries, fn($e) => [$e['course_code'] . ' (' . type_tag($e) . ')', $e['section'], short_name($e['faculty_name']), $e['room_name']]) ?>
   <p class="note">Indicate subject, year and section room, and number of students (Estimated)</p>
 
   <table class="wl">
     <tr class="h"><th>Workload</th><th>Lecture Hrs/Wk</th><th>Lab Hrs./Wk</th><th>Total</th><th colspan="2">Remarks</th></tr>
     <tr><td class="l b">A. Teaching Load:</td><td></td><td></td><td></td><td><?= h($remarks[0][0]) ?></td><td class="r"><?= h($remarks[0][1]) ?></td></tr>
-    <?php foreach ($w['rows'] as $i => $r): $rm = $remarks[$i + 1] ?? ['', '']; ?>
+    <?php foreach ($w['subjects'] as $i => $r): $rm = $remarks[$i + 1] ?? ['', '']; ?>
     <tr><td class="l"><?= h($r['code'] . ' — ' . $r['section']) ?></td>
-        <td><?= $r['lab'] ? '' : nf($r['hrs']) ?></td><td><?= $r['lab'] ? nf($r['hrs']) : '' ?></td><td><?= nf($r['hrs']) ?></td>
+        <td><?= $r['lecHrs'] > 0 ? nf($r['lecHrs']) : '' ?></td><td><?= $r['labHrs'] > 0 ? nf($r['labHrs']) : '' ?></td><td><?= nf($r['lecHrs'] + $r['labHrs']) ?></td>
         <td><?= h($rm[0]) ?></td><td class="r"><?= h($rm[1]) ?></td></tr>
-    <?php endforeach; for ($i = 0; $i < $blank; $i++): $rm = $remarks[count($w['rows']) + $i + 1] ?? ['', '']; ?>
+    <?php endforeach; for ($i = 0; $i < $blank; $i++): $rm = $remarks[count($w['subjects']) + $i + 1] ?? ['', '']; ?>
     <tr><td class="l">&nbsp;</td><td></td><td></td><td></td><td><?= h($rm[0]) ?></td><td class="r"><?= h($rm[1]) ?></td></tr>
     <?php endfor; ?>
     <tr class="sub"><td class="r b">Sub-Total</td><td><?= nf($w['lec']) ?></td><td><?= nf($w['lab']) ?></td><td><?= nf($w['lec'] + $w['lab']) ?></td><td colspan="2"></td></tr>

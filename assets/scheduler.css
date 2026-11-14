@@ -83,3 +83,10 @@ body.dragging { cursor: grabbing; user-select: none; }
 .sched-layout { transition: grid-template-columns .25s ease; }
 .sched-layout.pool-hidden { grid-template-columns: minmax(0, 1fr); }
 .sched-layout.pool-hidden .pool { display: none; }
+
+.ctype { display: inline-block; margin-left: 4px; padding: 0 5px; border-radius: 4px; font-size: 9.5px; font-weight: 700; line-height: 15px; color: #fff; }
+.ctype.lec { background: #3b5bdb; }
+.ctype.lab { background: #c2410c; }
+
+.chip.lec { border-left-color: #3b5bdb; }
+.chip.lab { border-left-color: #c2410c; }

@@ -200,6 +200,8 @@ foreach ($allEntries as $e) {
             <select id="courseSelect"><option value="">Select year level first</option></select>
         </div>
 
+        
+
         <div class="ui-field">
             <label class="ui-label" for="room">Room</label>
             <select id="room"><option value="">Loading...</option></select>

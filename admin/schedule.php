@@ -11,6 +11,7 @@ $db = new database();
 $conn = $db->connect();
 
 $DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
+$CLASS_TYPES = ['Lecture', 'Laboratory'];
 
 /** True if another class already uses $col ('room_id' or 'faculty_id') = $val on that day, overlapping [start,end). */
 function hasOverlap(mysqli $c, string $col, int $val, string $day, string $start, string $end, int $ignoreId): bool {
@@ -76,6 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $roomId     = (int)($_POST['room_id'] ?? 0);
             $facultyId  = ($_POST['faculty_id'] ?? '') !== '' ? (int)$_POST['faculty_id'] : null;   // optional instructor
             $section    = post_str('section');
+            $classType  = in_array($_POST['class_type'] ?? '', $CLASS_TYPES, true) ? $_POST['class_type'] : 'Lecture';
             $day        = $_POST['day_of_week'] ?? '';
             $start      = $_POST['start_time'] ?? '';
             $end        = $_POST['end_time'] ?? '';
@@ -100,12 +102,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             if ($scheduleId > 0) {
-                $stmt = $conn->prepare("UPDATE schedules SET course_id=?, faculty_id=?, room_id=?, section=?, day_of_week=?, start_time=?, end_time=?, cell_color=? WHERE schedule_id=?");
-                $stmt->bind_param("iiisssssi", $courseId, $facultyId, $roomId, $section, $day, $start, $end, $color, $scheduleId);
+                $stmt = $conn->prepare("UPDATE schedules SET course_id=?, faculty_id=?, room_id=?, section=?, class_type=?, day_of_week=?, start_time=?, end_time=?, cell_color=? WHERE schedule_id=?");
+                $stmt->bind_param("iiissssssi", $courseId, $facultyId, $roomId, $section, $classType, $day, $start, $end, $color, $scheduleId);
                 $msg = 'Workload updated.';
             } else {
-                $stmt = $conn->prepare("INSERT INTO schedules (course_id, faculty_id, room_id, section, day_of_week, start_time, end_time, cell_color) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-                $stmt->bind_param("iiisssss", $courseId, $facultyId, $roomId, $section, $day, $start, $end, $color);
+                $stmt = $conn->prepare("INSERT INTO schedules (course_id, faculty_id, room_id, section, class_type, day_of_week, start_time, end_time, cell_color) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->bind_param("iiissssss", $courseId, $facultyId, $roomId, $section, $classType, $day, $start, $end, $color);
                 $msg = 'Workload created.';
             }
             $stmt->execute();
@@ -209,9 +211,10 @@ foreach ($allEntries as $e) {
              data-faculty-id="<?= h($e['faculty_id']) ?>" data-day="<?= h($e['day_of_week']) ?>"
              data-start="<?= h($e['start_time']) ?>" data-end="<?= h($e['end_time']) ?>" data-color="<?= h($e['cell_color']) ?>"
              data-year="<?= h($e['year_level']) ?>" data-section="<?= h($e['section']) ?>"
+             data-type="<?= h($e['class_type'] ?? 'Lecture') ?>"
              data-course="<?= h($e['course_code']) ?>" data-name="<?= h($e['course_name']) ?>" data-room="<?= h($e['room_name']) ?>"
              style="--c:<?= h($e['cell_color'] ?: '#67e0a3') ?>">
-          <strong><?= h($e['course_code']) ?></strong>
+          <strong><?= h($e['course_code']) ?> <span class="ctype <?= ($e['class_type'] ?? 'Lecture') === 'Laboratory' ? 'lab' : 'lec' ?>"><?= ($e['class_type'] ?? 'Lecture') === 'Laboratory' ? 'LAB' : 'LEC' ?></span></strong>
           <small class="t"></small>
           <small><?= h($e['course_name']) ?></small>
           <small>⌂ <?= h($e['room_name']) ?><?php if ($e['faculty_name']): ?> · ♙ <?= h($e['faculty_name']) ?><?php endif; ?></small>
@@ -286,10 +289,18 @@ foreach ($allEntries as $e) {
             </select>
         </div>
 
-        <div class="ui-field span2">
+        <div class="ui-field">
             <label class="ui-label" for="courseSelect">Course</label>
             <select id="courseSelect"><option value="">Select year level first</option></select>
         </div>
+
+         <div class="ui-field">
+             <label class="ui-label" for="classType">Class type</label>
+             <select id="classType">
+             <?php foreach ($CLASS_TYPES as $t): ?><option value="<?= h($t) ?>"><?= h($t) ?></option><?php endforeach; ?>
+             </select>
+        </div>
+
 
         <div class="ui-field">
             <label class="ui-label" for="room">Room</label>
@@ -336,6 +347,7 @@ const startTimeSelect = document.getElementById("startTime");
 const endTimeSelect = document.getElementById("endTime");
 const yearLevelSelect = document.getElementById("yearLevel");
 const courseSelect = document.getElementById("courseSelect");
+const classTypeSelect = document.getElementById("classType");
 const sectionSelect = document.getElementById("section");
 const roomSelect = document.getElementById("room");
 const instructorSelect = document.getElementById("instructor");
@@ -387,6 +399,7 @@ function resetModalForCreate() {
     roomSelect.value = "";
     instructorSelect.value = "";
     colorInput.value = "#67e0a3";
+    classTypeSelect.value = "Lecture";
     courseSelect.innerHTML = '<option value="">Select year level first</option>';
     filterSections("");
     sectionSelect.querySelector('option[value=""]').textContent = 'Select year level first';
@@ -574,7 +587,7 @@ saveButton.addEventListener("click", function () {
     form.method = 'POST';
     const fields = {
         csrf_token: CSRF, action: 'save_workload', schedule_id: editingId ?? '', course_id: courseId, room_id: roomId,
-        faculty_id: facultyId, section: section, day_of_week: day, start_time: startTime,
+        faculty_id: facultyId, section: section, class_type: classTypeSelect.value, day_of_week: day, start_time: startTime,
         end_time: endTime, cell_color: cellColor
     };
     Object.entries(fields).forEach(([k, v]) => {
@@ -614,6 +627,7 @@ function openEdit(card) {
     dayPicker.value = d.day;
     colorInput.value = d.color || "#67e0a3";
     instructorSelect.value = d.facultyId || "";
+    classTypeSelect.value = d.type || "Lecture";
     yearLevelSelect.value = d.year;
     filterSections(d.year);
     sectionSelect.querySelector('option[value=""]').textContent = 'Select Section';
@@ -728,17 +742,20 @@ function renderPool() {
     const list = DATA.courses.filter(c => String(c.year_level) === String(yr));
     p.textContent = list.length ? 'Drag a course onto the week.' : 'No open courses for this year level.';
     list.forEach(c => {
-        const mins = blocks().filter(b => b.dataset.section === sec && b.dataset.courseId === String(c.course_id))
-                             .reduce((a, b) => a + fromDb(b.dataset.end) - fromDb(b.dataset.start), 0);
-        const el = document.createElement('div'); el.className = 'chip';
-        const a = document.createElement('strong'), n = document.createElement('span'), m = document.createElement('span');
-        a.textContent = c.course_code; n.textContent = c.course_name;
-        m.textContent = c.units + ' units · ' + (mins / 60) + ' h scheduled';
-        el.append(a, n, m);
-        el.addEventListener('pointerdown', e => startDrag(e, { type: 'new', course: c, section: sec, el }));
-        pool.appendChild(el);
+        ['Lecture', 'Laboratory'].forEach(ct => {
+            const mins = blocks().filter(b => b.dataset.section === sec && b.dataset.courseId === String(c.course_id) && (b.dataset.type || 'Lecture') === ct)
+                                 .reduce((a, b) => a + fromDb(b.dataset.end) - fromDb(b.dataset.start), 0);
+            const el = document.createElement('div'); el.className = 'chip ' + (ct === 'Laboratory' ? 'lab' : 'lec');
+            const a = document.createElement('strong'), n = document.createElement('span'), m = document.createElement('span');
+            a.textContent = c.course_code + ' · ' + (ct === 'Laboratory' ? 'LAB' : 'LEC'); n.textContent = c.course_name;
+            m.textContent = c.units + ' units · ' + (mins / 60) + ' h scheduled';
+            el.append(a, n, m);
+            el.addEventListener('pointerdown', e => startDrag(e, { type: 'new', course: c, ctype: ct, section: sec, el }));
+            pool.appendChild(el);
+        });
     });
 }
+
 viewBy.addEventListener('change', () => applyView());
 viewVal.addEventListener('change', () => applyView(true));
 
@@ -797,7 +814,7 @@ function onMove(e) {
         if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 5) return;
         drag.moved = true; document.body.classList.add('dragging');
         if (drag.type === 'move') drag.el.classList.add('is-dragging');
-        if (drag.type === 'new') { drag.float = document.createElement('div'); drag.float.className = 'float'; drag.float.textContent = drag.course.course_code; document.body.appendChild(drag.float); }
+        if (drag.type === 'new') { drag.float = document.createElement('div'); drag.float.className = 'float'; drag.float.textContent = drag.course.course_code + (drag.ctype === 'Laboratory' ? ' · LAB' : ' · LEC'); document.body.appendChild(drag.float); }
     }
     if (drag.float) { drag.float.style.left = (e.clientX + 12) + 'px'; drag.float.style.top = (e.clientY + 12) + 'px'; }
     const t = target(e); drag.tgt = t;
@@ -839,6 +856,7 @@ function saveMove(el, t) {
 /* Dropping a course from the pool opens the normal form, pre-filled; room + instructor are picked there. */
 function openCreateFromDrop(t, d) {
     resetModalForCreate();
+        classTypeSelect.value = d.ctype || 'Lecture';
     const year = sectionYear(d.section) || '';
     dayPicker.value = t.day;
     yearLevelSelect.value = year;
