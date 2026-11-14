@@ -30,7 +30,7 @@ $greeting = $hour < 12 ? 'Good morning' : ($hour < 18 ? 'Good afternoon' : 'Good
 
 require '../includes/faculty_header.php';
 ?>
-<script src="../assets/ui.js"></script>
+<script src="<?= asset('ui.js') ?>"></script>
 
 <section class="page-section">
   <div class="dash-welcome">

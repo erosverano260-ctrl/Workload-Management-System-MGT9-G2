@@ -65,10 +65,10 @@ CREATE TABLE `schedules` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
 INSERT INTO `schedules` (`schedule_id`, `course_id`, `faculty_id`, `room_id`, `section`, `day_of_week`, `start_time`, `end_time`, `cell_color`) VALUES
-(38, 2, NULL, 1, 'BSIT-1A', 'Monday', '07:00:00', '07:30:00', '#3ddb8c'),
-(39, 2, NULL, 1, 'BSIT-1A', 'Monday', '07:30:00', '08:00:00', '#67e0a3'),
-(40, 4, NULL, 3, 'BSIT-1A', 'Tuesday', '10:00:00', '12:00:00', '#67e0a3'),
-(41, 3, NULL, 1, 'BSIT-2A', 'Wednesday', '08:00:00', '10:00:00', '#40e291');
+(38, 2, NULL, 1, 'BSEE-1A', 'Monday', '07:00:00', '07:30:00', '#3ddb8c'),
+(39, 2, NULL, 1, 'BSEE-1A', 'Monday', '07:30:00', '08:00:00', '#67e0a3'),
+(40, 4, NULL, 3, 'BSEE-1A', 'Tuesday', '10:00:00', '12:00:00', '#67e0a3'),
+(41, 3, NULL, 1, 'BSEE-2A', 'Wednesday', '08:00:00', '10:00:00', '#40e291');
 
 ALTER TABLE `courses`
   ADD PRIMARY KEY (`course_id`),

@@ -1,0 +1,83 @@
+/* print.css — official printed forms (instructor program, section program, room utilization, workload matrix) */
+.print-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
+.print-tabs a { padding: 9px 14px; border: 1.5px solid var(--border); border-radius: 10px; background: #fff; color: var(--navy); font-size: 13.5px; font-weight: 600; text-decoration: none; }
+.print-tabs a:hover { border-color: var(--amber-dark); }
+.print-tabs a.on { background: var(--amber); border-color: var(--amber); }
+.print-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 0 0 16px; }
+.print-bar select { height: 40px; padding: 0 12px; min-width: 240px; border: 1.5px solid var(--border); border-radius: 10px; background: #fff; font: inherit; font-size: 14px; }
+.print-bar .hint { font-size: 12.5px; color: var(--muted); }
+
+.sheet { background: #fff; color: #000; font-family: Calibri, Arial, sans-serif; font-size: 11px; margin: 0 auto 24px; padding: 14px;
+         border: 1px solid var(--border); box-shadow: var(--shadow); overflow-x: auto; }
+.sheet-instructor, .sheet-section { max-width: 8.5in; }
+.sheet-room { max-width: 13in; }
+.sheet-matrix { max-width: 8.27in; }
+.sheet table { border-collapse: collapse; width: 100%; }
+.sheet td, .sheet th { border: 1px solid #000; padding: 2px 4px; text-align: center; vertical-align: middle; }
+.sheet .b { font-weight: 700; }
+.sheet .l { text-align: left; }
+.sheet .r { text-align: right; }
+.sheet .c { text-align: center; }
+.sheet .note { text-align: center; font-style: italic; margin: 3px 0; }
+.sheet .note.l { text-align: left; font-size: 9px; }
+.sheet .cap { font-weight: 700; margin: 12px 0 4px; }
+
+/* header */
+.ph td { border: 1px solid #000; }
+.ph-logos { width: 150px; white-space: nowrap; }
+.ph-logos img { height: 62px; width: auto; margin: 0 3px; vertical-align: middle; }
+.ph-title { line-height: 1.35; font-size: 11px; }
+.ph-title .gap { margin-top: 8px; } .ph-title .gap2 { margin-top: 6px; font-size: 12px; }
+.ph-right { width: 215px; padding: 0 !important; vertical-align: top; }
+.ph-right .ph-ref { width: 100%; }
+.ph-right .ph-ref td { border: 0; border-bottom: 1px solid #000; text-align: left; font-size: 8px; padding: 1px 4px; }
+.ph-right .tuv { display: block; width: 100%; max-height: 62px; object-fit: contain; padding: 3px; box-sizing: border-box; }
+
+/* info lines */
+.info { margin: 8px 0; }
+.info td { border: 0; text-align: left; padding: 3px 4px; }
+.info .k { width: 1%; white-space: nowrap; }
+.info .ul, .info .u { border-bottom: 1px solid #000; }
+
+/* timetable */
+.tt { table-layout: fixed; }
+.tt th { font-size: 11px; padding: 4px; }
+.sheet-section .tt th, .sheet-room .tt th { background: #8fbc7a; }
+.tt td { height: 21px; font-size: 9px; line-height: 1.15; padding: 1px 3px; }
+.tt .tcol { width: 82px; font-size: 10px; white-space: nowrap; }
+.tt .per { width: 24px; padding: 0; }
+.tt .per span { writing-mode: vertical-rl; transform: rotate(180deg); font-weight: 700; letter-spacing: 2px; }
+.tt .lunch { font-weight: 700; letter-spacing: 2px; font-size: 11px; }
+.tt .blk { font-size: 9px; }
+
+/* instructor workload + signatures */
+.wl { margin-top: 0; } .wl td, .wl th { font-size: 10px; } .wl .h th { font-size: 11px; } .wl .sub td { font-weight: 700; }
+.wl .grand td { border-top: 2px solid #000; }
+.act { margin-top: 4px; } .act th { font-size: 11px; } .act td { text-align: left; height: 18px; }
+.act td.c { text-align: center; }
+.eff { margin: 4px 0 0; }
+.sl th { background: #d9ead3; font-size: 10px; } .sl td { text-align: left; font-size: 10px; } .sl td:nth-child(n+3) { text-align: center; }
+
+/* room utilization */
+.room-page { page-break-after: always; margin-bottom: 14px; }
+.room-page:last-child { page-break-after: auto; }
+.room-row { display: flex; gap: 18px; margin-top: 10px; }
+.room-cell { flex: 1; min-width: 0; }
+.room-title { font-size: 16px; font-weight: 700; text-align: center; }
+.room-stat { text-align: center; font-size: 9px; margin: 2px 0 4px; }
+.sheet-room .tt td { height: 15px; font-size: 7.5px; } .sheet-room .tt .tcol { width: 62px; font-size: 8px; } .sheet-room .tt th { font-size: 9px; padding: 2px; }
+
+/* workload matrix */
+.mx td, .mx th { font-size: 9px; } .mx th { background: #eef1f8; }
+.mx.fac { margin-top: 12px; page-break-inside: avoid; }
+.mx .fh td { background: #fff7e0; } .mx .tot td { font-weight: 700; background: #f7f8fc; }
+.mx .over, .over { color: #c00; font-weight: 700; }
+
+@media print {
+    body { background: #fff !important; }
+    .sidebar, .no-print { display: none !important; }
+    .app-shell { display: block; }
+    .main-area { padding: 0 !important; max-width: none !important; }
+    .sheet { border: 0; box-shadow: none; margin: 0 auto; padding: 0; max-width: none; overflow: visible; }
+    .sheet, .sheet * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

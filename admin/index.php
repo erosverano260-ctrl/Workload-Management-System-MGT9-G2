@@ -12,6 +12,7 @@ $conn = $db->connect();
 
 const WEEK_HOURS_PER_ROOM = 60;   // 7am-7pm, 5 days (same figure the Classrooms page uses)
 $DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
+$CLASS_TYPES = ['Lecture', 'Laboratory'];
 
 function one(mysqli $c, string $sql): array { return $c->query($sql)->fetch_assoc() ?: []; }
 function all(mysqli $c, string $sql): array { return $c->query($sql)->fetch_all(MYSQLI_ASSOC); }

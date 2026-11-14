@@ -61,3 +61,9 @@ function temp_password(int $len = 10): string {
     for ($i = 0; $i < $len; $i++) $out .= $alphabet[random_int(0, strlen($alphabet) - 1)];
     return $out;
 }
+
+/** URL of a file in /assets with a version stamp, so browsers never keep a stale copy after an update. */
+function asset(string $file): string {
+    $path = __DIR__ . '/../assets/' . $file;
+    return '../assets/' . $file . (is_file($path) ? '?v=' . filemtime($path) : '');
+}

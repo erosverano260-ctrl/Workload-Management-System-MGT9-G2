@@ -1,0 +1,21 @@
+/* layout.css — collapsible main sidebar (admin + faculty). State is kept on <html class="nav-collapsed">. */
+.nav-toggle { margin-left: auto; flex: none; width: 30px; height: 30px; border: 0; border-radius: 8px; background: rgba(255,255,255,.08);
+    color: #c7cfe6; font-size: 20px; line-height: 1; cursor: pointer; transition: background .2s, transform .25s; }
+.nav-toggle:hover { background: rgba(255,255,255,.2); color: #fff; }
+.sidebar { transition: width .25s ease, flex-basis .25s ease, padding .25s ease; }
+.main-area { transition: max-width .25s ease; }
+
+@media (min-width: 641px) {
+    html.nav-collapsed .sidebar { width: 76px; flex-basis: 76px; padding: 22px 10px; }
+    html.nav-collapsed .sidebar .brand { flex-direction: column; gap: 12px; padding: 0 0 16px; }
+    html.nav-collapsed .sidebar .brand span { display: none; }
+    html.nav-collapsed .nav-toggle { margin-left: 0; transform: rotate(180deg); }
+    html.nav-collapsed .sidebar nav a { font-size: 0; gap: 0; justify-content: center; padding: 12px 0; }
+    html.nav-collapsed .sidebar nav a b { font-size: 17px; width: auto; }
+    html.nav-collapsed .sidebar nav a:hover { padding-left: 0; }
+    html.nav-collapsed .sidebar-foot { flex-direction: column; gap: 12px; }
+    html.nav-collapsed .sidebar-foot > div:not(.avatar) { display: none; }
+    html.nav-collapsed .main-area { max-width: none; }
+}
+@media (max-width: 640px) { .nav-toggle { display: none; } }
+@media print { .nav-toggle { display: none !important; } }

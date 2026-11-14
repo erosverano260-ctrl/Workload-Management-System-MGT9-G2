@@ -14,15 +14,17 @@ $facName = currentUserName() ?: 'Instructor';
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= h(($title ?? 'Faculty Portal') . ' · EE Faculty') ?></title>
-<link rel="stylesheet" href="../assets/style.css">
-<link rel="stylesheet" href="../assets/ui.css">
-<link rel="stylesheet" href="../assets/portal.css">
+<link rel="stylesheet" href="<?= asset('style.css') ?>">
+<link rel="stylesheet" href="<?= asset('layout.css') ?>">
+<script>try{if(localStorage.getItem('navCollapsed')==='1')document.documentElement.classList.add('nav-collapsed')}catch(e){}</script>
+<link rel="stylesheet" href="<?= asset('ui.css') ?>">
+<link rel="stylesheet" href="<?= asset('portal.css') ?>">
 </head>
 <body>
 <div class="app-shell">
 
 <aside class="sidebar">
-    <div class="brand"><img src="../assets/ee-logo.svg" alt=""><span>EE Faculty Portal <small style="display:block;font-weight:600;color:var(--amber);font-size:11px">INSTRUCTOR</small></span></div>
+    <div class="brand"><img src="../assets/ee-logo.svg" alt=""><span>EE Faculty Portal <small style="display:block;font-weight:600;color:var(--amber);font-size:11px">INSTRUCTOR</small></span><button type="button" class="nav-toggle" id="navToggle" aria-label="Collapse menu" aria-expanded="true" title="Collapse menu">‹</button></div>
     <nav>
         <a href="index.php" class="<?= $page==='dashboard'?'active':'' ?>"><b>▦</b> My Dashboard</a>
         <a href="schedule.php" class="<?= $page==='schedule'?'active':'' ?>"><b>◷</b> My Schedule</a>

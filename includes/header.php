@@ -11,19 +11,22 @@ $adminName = currentUserName() ?: 'Admin';
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= h(($title ?? 'Admin') . ' · EE Admin') ?></title>
-<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="<?= asset('style.css') ?>">
+<link rel="stylesheet" href="<?= asset('layout.css') ?>">
+<script>try{if(localStorage.getItem('navCollapsed')==='1')document.documentElement.classList.add('nav-collapsed')}catch(e){}</script>
 </head>
 <body>
 <div class="app-shell">
 
 <aside class="sidebar">
-    <div class="brand"><img src="../assets/ee-logo.svg" alt=""><span>EE Workload Management <small style="display:block;font-weight:600;color:var(--amber);font-size:11px">ADMIN</small></span></div>
+    <div class="brand"><img src="../assets/ee-logo.svg" alt=""><span>EE Workload Management <small style="display:block;font-weight:600;color:var(--amber);font-size:11px">ADMIN</small></span><button type="button" class="nav-toggle" id="navToggle" aria-label="Collapse menu" aria-expanded="true" title="Collapse menu">‹</button></div>
     <nav>
         <a href="index.php" class="<?= $page==='dashboard'?'active':'' ?>"><b>▦</b> Dashboard</a>
         <a href="courses.php" class="<?= $page==='courses'?'active':'' ?>"><b>▤</b> Course Catalog</a>
         <a href="classrooms.php" class="<?= $page==='rooms'?'active':'' ?>"><b>⌂</b> Classrooms</a>
         <a href="instructors.php" class="<?= $page==='instructors'?'active':'' ?>"><b>♙</b> Instructors</a>
         <a href="schedule.php" class="<?= $page==='schedule'?'active':'' ?>"><b>◷</b> Print/Create Schedules</a>
+        <a href="print.php" class="<?= $page==='print'?'active':'' ?>"><b>⎙</b> Print Forms</a>
         <a href="account.php" class="<?= $page==='account'?'active':'' ?>"><b>⚙</b> My Account</a>
     </nav>
     <div class="sidebar-foot">

@@ -61,7 +61,7 @@ require '../includes/faculty_header.php';
 $flash = flash_get();
 $picked = array_filter(explode(',', (string)$inst['available_days']));
 ?>
-<script src="../assets/ui.js"></script>
+<script src="<?= asset('ui.js') ?>"></script>
 
 <section class="page-section">
 <div class="section-heading">

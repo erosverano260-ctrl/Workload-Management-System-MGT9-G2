@@ -19,6 +19,20 @@ Each role is bounced to its own area if it opens the other's URL. All admin JSON
 
 Database settings: `includes/db.php`.
 
+## Printed forms (copied from the reference workbooks)
+Admin → **Print Forms** has four tabs; the faculty portal has the first one for the signed-in instructor only. Every form carries the logos, reference-code box and the **TUV NORD** badge in the upper-right corner.
+
+| Form | Paper | Based on |
+|---|---|---|
+| Instructor's Class Program (timetable + workload + signature block) | 8.5 × 13 in | INSTRUCTORS-CLASS-PROGRAM-SEM2 |
+| Student's Class Program per section (+ subjects for loading) | Letter | BSIT_CLASS_LIST_PER_SECTION-SEM2 |
+| Room Utilization (all rooms, or one) | 13 × 8.5 in landscape | ROOM-UTILIZATION-SEM-2 |
+| Faculty Workload Matrix (admin only) | A4 | HAIDE_FACULTY_WORKLOAD-MATRIX |
+
+School name, college, department, program, term / S.Y., reference codes, revision date and prepared-by wording live in `includes/print_config.php`. Logos are in `assets/` (`logo-pit.png`, `logo-cote.png`, `tuv-nord.png`). In the print dialog turn on "Background graphics" so the cell colours print.
+
+Load maths follows the matrix: lab hours count at 0.7; regular load is 21 units for 2 preparations, 18 for 3–4, 15 for 5+; a course code ending in `L` (e.g. `IT 101L`) is treated as a lab.
+
 ## Security notes
 - No demo password any more. Passwords are hashed; 5 failed sign-ins pause login for 60 s.
 - Every POST form has a CSRF token; deleting a schedule is now a POST (was a GET link).
