@@ -61,7 +61,7 @@ if ($type === 'section') {
     $inst = null; foreach ($faculty as $f) if ($sel === (string)$f['faculty_id']) $inst = $f;
     $inst = $inst ?? ($faculty[0] ?? null);
     if (!$inst) { echo '<div class="empty">Add an instructor first.</div>'; }
-    else render_instructor_program($inst, load_program_entries($conn, 'faculty', (int)$inst['faculty_id']));
+    else render_instructor_program($inst, load_program_entries($conn, 'faculty', (int)$inst['faculty_id']), load_designations($conn, (int)$inst['faculty_id']));
 } elseif ($type === 'room') {
     $list = $rooms;
     if ($sel !== '' && $sel !== 'all') $list = array_values(array_filter($rooms, fn($r) => (string)$r['room_id'] === $sel));

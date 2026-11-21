@@ -29,6 +29,8 @@ $facName = currentUserName() ?: 'Instructor';
         <a href="index.php" class="<?= $page==='dashboard'?'active':'' ?>"><b>▦</b> My Dashboard</a>
         <a href="schedule.php" class="<?= $page==='schedule'?'active':'' ?>"><b>◷</b> My Schedule</a>
         <a href="profile.php" class="<?= $page==='profile'?'active':'' ?>"><b>♙</b> My Profile</a>
+        <a href="overload.php" class="<?= $page==='overload'?'active':'' ?>"><b>＋</b> Overload Sessions</a>
+        <a href="designations.php" class="<?= $page==='designations'?'active':'' ?>"><b>★</b> My Designations</a>
     </nav>
     <div class="sidebar-foot">
         <div class="avatar small"><?= h(strtoupper(mb_substr(preg_replace('/^(engr|dr|prof|mr|ms|mrs)\.?\s+/i', '', $facName), 0, 1))) ?></div>

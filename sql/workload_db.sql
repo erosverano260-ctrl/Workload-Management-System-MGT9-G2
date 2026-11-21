@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Nov 20, 2026 at 10:23 AM
+-- Generation Time: Nov 21, 2026 at 02:32 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -74,6 +74,27 @@ INSERT INTO `courses` (`course_id`, `course_code`, `course_name`, `year_level`, 
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `designations`
+--
+
+CREATE TABLE `designations` (
+  `designation_id` int(11) NOT NULL,
+  `name` varchar(100) NOT NULL,
+  `hours` decimal(4,1) NOT NULL DEFAULT 0.0,
+  `service_credit` decimal(4,1) NOT NULL DEFAULT 0.0
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+
+--
+-- Dumping data for table `designations`
+--
+
+INSERT INTO `designations` (`designation_id`, `name`, `hours`, `service_credit`) VALUES
+(1, 'Dept. Chair', 0.0, 0.0),
+(2, 'BSEE Adviser', 0.0, 0.0);
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `faculty`
 --
 
@@ -98,6 +119,51 @@ INSERT INTO `faculty` (`faculty_id`, `username`, `faculty_name`, `specialty`, `a
 (1, 'ramon.torres', 'Engr. Ramon Torres', 'Power Systems', 'Mon,Tue,Wed', '08:00:00', '12:00:00', '!', 0, 'instructor'),
 (2, 'liza.fernandez', 'Engr. Liza Fernandez', 'Control Systems', 'Tue,Wed,Thu', '13:00:00', '17:00:00', '$2y$10$nb/RzEATXIOLZGWzI1ziu.obDNQGQKu3dLhWcRsmImPcASg0.zPuS', 0, 'instructor'),
 (3, 'michael.ong', 'Engr. Michael Ong', 'Electronics', 'Mon,Wed,Fri', '09:00:00', '15:00:00', '!', 0, 'instructor');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `faculty_designations`
+--
+
+CREATE TABLE `faculty_designations` (
+  `fd_id` int(11) NOT NULL,
+  `faculty_id` int(11) NOT NULL,
+  `designation_id` int(11) NOT NULL,
+  `status` enum('Pending','Approved','Rejected') NOT NULL DEFAULT 'Pending',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+
+--
+-- Dumping data for table `faculty_designations`
+--
+
+INSERT INTO `faculty_designations` (`fd_id`, `faculty_id`, `designation_id`, `status`, `created_at`) VALUES
+(2, 2, 2, 'Approved', '2026-11-21 13:29:27');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `overload_sessions`
+--
+
+CREATE TABLE `overload_sessions` (
+  `session_id` int(11) NOT NULL,
+  `faculty_id` int(11) NOT NULL,
+  `day_of_week` varchar(10) NOT NULL,
+  `start_time` time NOT NULL,
+  `end_time` time NOT NULL,
+  `status` enum('Pending','Approved','Rejected') NOT NULL DEFAULT 'Pending',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+
+--
+-- Dumping data for table `overload_sessions`
+--
+
+INSERT INTO `overload_sessions` (`session_id`, `faculty_id`, `day_of_week`, `start_time`, `end_time`, `status`, `created_at`) VALUES
+(1, 2, 'Monday', '13:00:00', '14:00:00', 'Pending', '2026-11-21 13:01:57'),
+(2, 2, 'Tuesday', '16:00:00', '17:00:00', 'Pending', '2026-11-21 13:02:13');
 
 -- --------------------------------------------------------
 
@@ -184,11 +250,33 @@ ALTER TABLE `courses`
   ADD UNIQUE KEY `course_code` (`course_code`);
 
 --
+-- Indexes for table `designations`
+--
+ALTER TABLE `designations`
+  ADD PRIMARY KEY (`designation_id`),
+  ADD UNIQUE KEY `uq_designation_name` (`name`);
+
+--
 -- Indexes for table `faculty`
 --
 ALTER TABLE `faculty`
   ADD PRIMARY KEY (`faculty_id`),
   ADD UNIQUE KEY `uq_faculty_username` (`username`);
+
+--
+-- Indexes for table `faculty_designations`
+--
+ALTER TABLE `faculty_designations`
+  ADD PRIMARY KEY (`fd_id`),
+  ADD UNIQUE KEY `uq_fac_des` (`faculty_id`,`designation_id`),
+  ADD KEY `idx_fd_des` (`designation_id`);
+
+--
+-- Indexes for table `overload_sessions`
+--
+ALTER TABLE `overload_sessions`
+  ADD PRIMARY KEY (`session_id`),
+  ADD KEY `idx_overload_faculty` (`faculty_id`);
 
 --
 -- Indexes for table `rooms`
@@ -222,10 +310,28 @@ ALTER TABLE `courses`
   MODIFY `course_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
 
 --
+-- AUTO_INCREMENT for table `designations`
+--
+ALTER TABLE `designations`
+  MODIFY `designation_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
 -- AUTO_INCREMENT for table `faculty`
 --
 ALTER TABLE `faculty`
   MODIFY `faculty_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+
+--
+-- AUTO_INCREMENT for table `faculty_designations`
+--
+ALTER TABLE `faculty_designations`
+  MODIFY `fd_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
+-- AUTO_INCREMENT for table `overload_sessions`
+--
+ALTER TABLE `overload_sessions`
+  MODIFY `session_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `rooms`
@@ -242,6 +348,19 @@ ALTER TABLE `schedules`
 --
 -- Constraints for dumped tables
 --
+
+--
+-- Constraints for table `faculty_designations`
+--
+ALTER TABLE `faculty_designations`
+  ADD CONSTRAINT `fk_fd_designation` FOREIGN KEY (`designation_id`) REFERENCES `designations` (`designation_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_fd_faculty` FOREIGN KEY (`faculty_id`) REFERENCES `faculty` (`faculty_id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `overload_sessions`
+--
+ALTER TABLE `overload_sessions`
+  ADD CONSTRAINT `fk_overload_faculty` FOREIGN KEY (`faculty_id`) REFERENCES `faculty` (`faculty_id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `schedules`

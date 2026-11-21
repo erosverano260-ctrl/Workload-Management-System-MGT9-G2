@@ -60,6 +60,24 @@ function load_program_entries(mysqli $c, string $by = '', $val = null): array {
     return $rows;
 }
 
+/** One instructor's designated overload sessions (each is a 1-hour slot). */
+function load_overload_sessions(mysqli $c, int $facultyId): array {
+    $st = $c->prepare("SELECT session_id, day_of_week, start_time, end_time, status FROM overload_sessions
+                       WHERE faculty_id = ? ORDER BY FIELD(day_of_week,'Monday','Tuesday','Wednesday','Thursday','Friday'), start_time");
+    $st->bind_param('i', $facultyId);
+    $st->execute();
+    return $st->get_result()->fetch_all(MYSQLI_ASSOC);
+}
+/** An instructor's APPROVED designations (section C of the class program), with the hours and service credit each carries. */
+function load_designations(mysqli $c, int $facultyId): array {
+    $st = $c->prepare("SELECT d.designation_id, d.name, d.hours, d.service_credit
+                       FROM faculty_designations fd JOIN designations d ON d.designation_id = fd.designation_id
+                       WHERE fd.faculty_id = ? AND fd.status = 'Approved' ORDER BY d.name");
+    $st->bind_param('i', $facultyId);
+    $st->execute();
+    return $st->get_result()->fetch_all(MYSQLI_ASSOC);
+}
+
 /** One row per subject+section with lecture/lab hours, plus the load maths used by the workload matrix (lab hours count x0.7). */
 function workload_summary(array $entries): array {
     // 1) one row per subject + section + type (lecture / lab); the workload matrix uses these
@@ -98,8 +116,11 @@ function workload_summary(array $entries): array {
     $np = count($preps);
     $allowed = $np >= 5 ? 15 : ($np >= 3 ? 18 : 21);          // regular load by number of preparations
     $comp = $lec + 0.7 * $lab;
+    $over   = max(0, round($comp - $allowed, 1));      // never negative
+    $claim  = floor($over + 1e-9);                      // whole hours that can be claimed as overload sessions
+    $credit = round($over - $claim, 1);                 // the leftover below 1 hour = teaching service credit
     return ['rows' => array_values($rows), 'subjects' => array_values($subjects), 'lec' => $lec, 'lab' => $lab, 'units' => $unitsLec + $unitsLab, 'unitsLec' => $unitsLec, 'unitsLab' => $unitsLab,
-            'preps' => $np, 'allowed' => $allowed, 'comp' => round($comp, 1), 'overload' => round($comp - $allowed, 1)];
+            'preps' => $np, 'allowed' => $allowed, 'comp' => round($comp, 1), 'overload' => $over, 'claim' => $claim, 'credit' => $credit];
 }
 
 
@@ -180,10 +201,15 @@ function timetable_html(array $entries, callable $lines, array $days = FAC_DAYS,
 }
 
 /* ====================== 1. INSTRUCTOR'S CLASS PROGRAM ====================== */
-function render_instructor_program(array $inst, array $entries): void {
+function render_instructor_program(array $inst, array $entries, array $designations = []): void   {
     $c = pcfg(); $w = workload_summary($entries);
     $blank = max(0, 8 - count($w['subjects']));
-    $remarks = [['No. of Preparations:', (string)$w['preps']], ['Service Credits:', ''], ['Teaching Overload:', nf($w['overload'])]];
+    $desHrs = 0.0; $desCredit = 0.0;                  // section C hours, and the service credits those designations earn
+    foreach ($designations as $dg) { $desHrs += (float)$dg['hours']; $desCredit += (float)$dg['service_credit']; }
+    $remarks = [['No. of Preparations:', (string)$w['preps']], ['Service Credits:', $desCredit > 0 ? nf($desCredit) : ''], ['Teaching Overload:', nf($w['overload'])],
+            ['Overload hrs to claim:', nf($w['claim'])], ['Teaching Service Credit:', nf($w['credit'])]];
+    
+
 ?>
 <div class="sheet sheet-instructor">
   <?php print_header("INSTRUCTOR'S CLASS PROGRAM", 'instructor'); ?>
@@ -200,21 +226,26 @@ function render_instructor_program(array $inst, array $entries): void {
     <tr><td class="l b">A. Teaching Load:</td><td></td><td></td><td></td><td><?= h($remarks[0][0]) ?></td><td class="r"><?= h($remarks[0][1]) ?></td></tr>
     <?php foreach ($w['subjects'] as $i => $r): $rm = $remarks[$i + 1] ?? ['', '']; ?>
     <tr><td class="l"><?= h($r['code'] . ' — ' . $r['section']) ?></td>
-        <td><?= $r['lecHrs'] > 0 ? nf($r['lecHrs']) : '' ?></td><td><?= $r['labHrs'] > 0 ? nf($r['labHrs']) : '' ?></td><td><?= nf($r['lecHrs'] + $r['labHrs']) ?></td>
+        <td><?= $r['lecHrs'] > 0 ? nf($r['lecHrs']) : '' ?></td><td><?= $r['labHrs'] > 0 ? nf($r['labHrs']) : '' ?></td> <td><?= nf($r['lecHrs'] + 0.7 * $r['labHrs']) ?></td>
         <td><?= h($rm[0]) ?></td><td class="r"><?= h($rm[1]) ?></td></tr>
     <?php endforeach; for ($i = 0; $i < $blank; $i++): $rm = $remarks[count($w['subjects']) + $i + 1] ?? ['', '']; ?>
     <tr><td class="l">&nbsp;</td><td></td><td></td><td></td><td><?= h($rm[0]) ?></td><td class="r"><?= h($rm[1]) ?></td></tr>
     <?php endfor; ?>
-    <tr class="sub"><td class="r b">Sub-Total</td><td><?= nf($w['lec']) ?></td><td><?= nf($w['lab']) ?></td><td><?= nf($w['lec'] + $w['lab']) ?></td><td colspan="2"></td></tr>
+    <tr class="sub"><td class="r b">Sub-Total</td><td><?= nf($w['lec']) ?></td><td><?= nf($w['lab']) ?></td><td><?= nf($w['comp']) ?></td><td colspan="2"></td></tr>
     <tr><td class="l b">B. Other Functions:</td><td></td><td></td><td></td><td colspan="2" class="b">Total Number of Students:</td></tr>
     <?php foreach (['Research', 'Extension', 'IMP', 'Consultation'] as $o): ?><tr><td class="l"><?= $o ?></td><td></td><td></td><td></td><td colspan="2"></td></tr><?php endforeach; ?>
     <tr class="sub"><td class="r b">Sub-Total</td><td></td><td></td><td>0</td><td colspan="2"></td></tr>
     <tr><td class="l b">C. Designation</td><td></td><td></td><td></td><td colspan="2"></td></tr>
-    <tr><td class="l">Dept.Chair</td><td></td><td></td><td></td><td colspan="2"></td></tr>
-    <tr><td class="l">BSEE Adviser</td><td></td><td></td><td></td><td colspan="2"></td></tr>
-    <tr class="sub"><td class="r b">Sub-Total</td><td></td><td></td><td>0</td><td colspan="2"></td></tr>
-    <tr class="grand"><td colspan="3" class="b">Grand Total (A+B+C)</td><td class="b"><?= nf($w['lec'] + $w['lab']) ?></td><td colspan="2"></td></tr>
+    <?php foreach ($designations as $dg): ?>
+    <tr><td class="l"><?= h($dg['name']) ?></td><td><?= nf($dg['hours']) ?></td><td></td><td><?= nf($dg['hours']) ?></td><td colspan="2"></td></tr>
+    <?php endforeach; for ($i = count($designations); $i < 2; $i++): ?>
+    <tr><td class="l">&nbsp;</td><td></td><td></td><td></td><td colspan="2"></td></tr>
+    <?php endfor; ?>
+    <tr class="sub"><td class="r b">Sub-Total</td><td></td><td></td><td><?= nf($desHrs) ?></td><td colspan="2"></td></tr>
+    <tr class="grand"><td colspan="3" class="b">Grand Total (A+B+C)</td><td class="b"><?= nf($w['comp'] + $desHrs) ?></td> </tr>
   </table>
+
+
 
   <table class="act">
     <tr><th>ACTION TAKEN</th><th>NAME</th><th>POSITION</th><th>SIGNATURE</th></tr>
@@ -223,6 +254,7 @@ function render_instructor_program(array $inst, array $entries): void {
     <tr><td>Verified by:</td><td></td><td class="c">Dean, COTE</td><td></td></tr>
     <tr><td>Approved by:</td><td></td><td class="c">VP-Academic Affairs</td><td></td></tr>
   </table>
+
   <p class="eff">Effective:</p>
 </div>
 <?php }
