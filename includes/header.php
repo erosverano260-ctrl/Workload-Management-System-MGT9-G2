@@ -28,6 +28,7 @@ $adminName = currentUserName() ?: 'Admin';
         <a href="schedule.php" class="<?= $page==='schedule'?'active':'' ?>"><b>◷</b> Print/Create Schedules</a>
         <a href="print.php" class="<?= $page==='print'?'active':'' ?>"><b>⎙</b> Print Forms</a>
         <a href="account.php" class="<?= $page==='account'?'active':'' ?>"><b>⚙</b> My Account</a>
+        
     </nav>
     <div class="sidebar-foot">
         <div class="avatar small"><?= h(strtoupper(mb_substr($adminName, 0, 1))) ?></div>

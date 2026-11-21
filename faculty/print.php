@@ -23,7 +23,7 @@ require '../includes/faculty_header.php';
         <button class="primary-btn" type="button" onclick="window.print()">🖨 Print / Save as PDF</button>
     </div>
 </div>
-<?php render_instructor_program($inst, $entries); ?>
+<?php render_instructor_program($inst, $entries, load_designations($conn, (int)$inst['faculty_id'])); ?>
 </section>
 
 <?php require '../includes/footer.php'; ?>
