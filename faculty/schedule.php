@@ -48,12 +48,13 @@ require '../includes/faculty_header.php';
         @page { size: landscape; margin: 8mm; }
     }
 </style>
-<link rel="stylesheet" href="../assets/faculty_schedule.css">
+<link rel="stylesheet" href="<?= asset('faculty_schedule.css') ?>">
 
 <section class="page-section">
 <div class="section-heading no-print">
     <div><span class="eyebrow">READ-ONLY</span><h2>My weekly schedule</h2></div>
-    <button class="primary-btn" type="button" onclick="window.print()">🖨 Print my schedule</button>
+    <div style="display:flex;gap:10px"><a href="print.php" class="primary-btn" style="text-decoration:none">📄 Official class program</a>
+    <button class="primary-btn" type="button" onclick="window.print()">🖨 Print this grid</button></div>
 </div>
 
 <div class="print-header">
