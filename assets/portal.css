@@ -49,3 +49,56 @@
 
 @media (max-width: 900px) { .profile-grid { grid-template-columns: 1fr; } }
 @media (max-width: 520px) { .f-grid2 { grid-template-columns: 1fr; } .wk-day li { flex-direction: column; gap: 0; } .wk-day li time { width: auto; } }
+
+/* ---------- notifications ---------- */
+.notif-list { display: grid; gap: 8px; max-width: 760px; }
+.notif { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: #fff; text-decoration: none; color: var(--text); transition: border-color .2s, transform .2s; }
+.notif:hover { border-color: var(--amber-dark); transform: translateY(-1px); }
+.notif.unread { background: #fff8ea; border-color: #f3d58a; }
+.notif-ic { flex: none; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: var(--bg); color: var(--navy); font-weight: 800; }
+.notif.t-approved .notif-ic { background: #dff5e7; color: #1f7a45; }
+.notif.t-rejected .notif-ic { background: var(--red-bg); color: var(--red); }
+.notif-body { flex: 1; min-width: 0; }
+.notif-body strong { display: block; font-size: 13.5px; font-weight: 600; line-height: 1.35; }
+.notif-body small { color: var(--muted); font-size: 12px; }
+.notif-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--amber-dark); flex: none; }
+
+/* ---------- chair's approvals ---------- */
+.ap-tabs { display: flex; gap: 8px; margin: 0 0 16px; flex-wrap: wrap; }
+.ap-tabs a { padding: 9px 14px; border: 1.5px solid var(--border); border-radius: 10px; background: #fff; color: var(--navy); font-size: 13.5px; font-weight: 600; text-decoration: none; }
+.ap-tabs a.on { background: var(--amber); border-color: var(--amber); }
+.ap-count { display: inline-block; margin-left: 4px; padding: 0 7px; border-radius: 20px; background: rgba(18, 33, 61, .1); font-size: 12px; }
+.ap-card { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding: 14px 16px; margin-bottom: 10px; background: #fff; border: 1px solid var(--border); border-radius: 12px; }
+.ap-main small { display: block; margin-top: 3px; color: var(--muted); font-size: 12.5px; }
+.ap-block { display: block; }
+.ap-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ap-form input[type=text] { height: 38px; min-width: 210px; padding: 0 10px; border: 1.5px solid var(--border); border-radius: 10px; font: inherit; font-size: 13px; }
+.ap-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 14px; }
+.ap-table td { padding: 8px 6px; border-top: 1px solid var(--border); vertical-align: middle; }
+.ap-bulk { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); font-size: 13px; color: var(--muted); }
+.ap-h { margin: 22px 0 8px; font-size: 15px; color: var(--navy); }
+.ds-badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.ds-badge.pending  { background: #fff4d6; color: #8a6100; }
+.ds-badge.approved { background: #dff5e7; color: #1f7a45; }
+.ds-badge.rejected { background: var(--red-bg); color: var(--red); }
+
+/* ---------- designations manager ---------- */
+.ds-add { margin-bottom: 14px; }
+.ds-fields { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+.ds-fields .f-field { min-width: 130px; }
+.ds-fields .f-field:first-child { flex: 1; min-width: 200px; }
+.f-field input[type=number] { width: 100%; height: 42px; padding: 0 12px; border: 1.5px solid var(--border); border-radius: 10px; font: inherit; font-size: 14px; background: #fff; }
+.ds-admin-row { display: flex; gap: 10px; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; padding: 12px 14px; margin-bottom: 8px; background: #fff; border: 1px solid var(--border); border-radius: 12px; }
+.ds-admin-row form:first-child { flex: 1; }
+
+/* ---------- teaching-load panel (faculty dashboard) ---------- */
+.ld-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.ld-item { background: var(--bg); border-radius: 12px; padding: 10px 12px; }
+.ld-item small { display: block; color: var(--muted); font-size: 11.5px; margin-bottom: 2px; }
+.ld-item strong { font-size: 20px; color: var(--navy); }
+.ld-item em { display: block; font-style: normal; font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+.ld-item.warn strong { color: var(--red); }
+.wk-bar { display: flex; height: 16px; border-radius: 999px; overflow: hidden; background: var(--bg); margin: 8px 0 6px; }
+.wk-bar span { display: block; height: 100%; }
+.wk-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.wk-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }

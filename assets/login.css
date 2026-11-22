@@ -1,0 +1,22 @@
+/* login.css — emblem background for the sign-in, forgot-password, setup and admin-reset pages */
+body.login-body { position: relative; min-height: 100vh; overflow: hidden; background: #12213d; }
+body.login-body::before {                       /* the emblem picture */
+    content: ""; position: absolute; inset: 0; z-index: 0;
+    background: url('login-bg.jpg') center / cover no-repeat;
+    transform: scale(1.02);
+}
+body.login-body::after {                        /* light navy veil: soft behind the card, nearly clear at the edges so the emblem reads */
+    content: ""; position: absolute; inset: 0; z-index: 1;
+    background: radial-gradient(ellipse at 50% 50%, rgba(14, 26, 50, .55) 0%, rgba(18, 33, 61, .32) 45%, rgba(18, 33, 61, .12) 100%);
+}
+body.login-body > .login-wrap { position: relative; z-index: 2; }
+body.login-body .login-wrap {
+    background: rgba(255, 255, 255, .96);
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+    box-shadow: 0 30px 70px -20px rgba(0, 0, 0, .6), 0 0 0 1px rgba(255, 255, 255, .25);
+}
+@media (max-width: 600px) { body.login-body::before { background-position: 70% center; } }
+
+/* "Forgot password?" link under the password field */
+.login-panel .forgot-link { align-self: flex-end; margin-top: -4px; font-size: 12.5px; font-weight: 600; color: var(--amber-dark); }
+.login-panel .forgot-link:hover, .login-panel .forgot-link:focus-visible { text-decoration: underline; }
