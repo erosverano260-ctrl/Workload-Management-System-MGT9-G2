@@ -40,6 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>First-time setup — EE Workload System</title>
 <link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="assets/login.css">
 </head>
 <body class="login-body">
 <div class="login-wrap">

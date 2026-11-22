@@ -64,6 +64,7 @@ if ($conn && $_SERVER['REQUEST_METHOD'] === 'POST') {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sign in — EE Workload System</title>
 <link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="assets/login.css">
 </head>
 <body class="login-body">
 <div class="login-wrap">
@@ -83,6 +84,7 @@ if ($conn && $_SERVER['REQUEST_METHOD'] === 'POST') {
         <input id="u" type="text" name="username" autocomplete="username" required autofocus value="<?= h($_POST['username'] ?? '') ?>">
         <label for="p">Password</label>
         <input id="p" type="password" name="password" autocomplete="current-password" required>
+        <a href="forgot.php" class="forgot-link">Forgot password?</a>
         <button type="submit" class="primary-btn full">Sign in <span>→</span></button>
         <small class="muted">Administrators and instructors sign in here. You'll be taken to the right place for your role.</small>
     </form>
