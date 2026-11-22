@@ -1,5 +1,6 @@
 </main>
 </div>
-<script src="../assets/app.js"></script>
+<script src="<?= asset('nav.js') ?>"></script>
+<script src="<?= asset('app.js') ?>"></script>
 </body>
 </html>

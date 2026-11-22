@@ -7,6 +7,8 @@ if (!empty($_SESSION['must_change']) && ($page ?? '') !== 'profile') {
     header('Location: profile.php'); exit;
 }
 $facName = currentUserName() ?: 'Instructor';
+if (!isset($conn) || !($conn instanceof mysqli)) { try { require_once __DIR__ . '/db.php'; $conn = (new database())->connect(); } catch (Throwable $e) { $conn = null; } }
+$navUnread = $conn ? unread_count($conn, 'faculty', currentUserId()) : 0;     // unread notifications
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -14,19 +16,24 @@ $facName = currentUserName() ?: 'Instructor';
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= h(($title ?? 'Faculty Portal') . ' · EE Faculty') ?></title>
-<link rel="stylesheet" href="../assets/style.css">
-<link rel="stylesheet" href="../assets/ui.css">
-<link rel="stylesheet" href="../assets/portal.css">
+<link rel="stylesheet" href="<?= asset('style.css') ?>">
+<link rel="stylesheet" href="<?= asset('layout.css') ?>">
+<script>try{if(localStorage.getItem('navCollapsed')==='1')document.documentElement.classList.add('nav-collapsed')}catch(e){}</script>
+<link rel="stylesheet" href="<?= asset('ui.css') ?>">
+<link rel="stylesheet" href="<?= asset('portal.css') ?>">
 </head>
 <body>
 <div class="app-shell">
 
 <aside class="sidebar">
-    <div class="brand"><img src="../assets/ee-logo.svg" alt=""><span>EE Faculty Portal <small style="display:block;font-weight:600;color:var(--amber);font-size:11px">INSTRUCTOR</small></span></div>
+    <div class="brand"><img src="../assets/ee-logo.svg" alt=""><span>EE Faculty Portal <small style="display:block;font-weight:600;color:var(--amber);font-size:11px">INSTRUCTOR</small></span><button type="button" class="nav-toggle" id="navToggle" aria-label="Collapse menu" aria-expanded="true" title="Collapse menu">‹</button></div>
     <nav>
         <a href="index.php" class="<?= $page==='dashboard'?'active':'' ?>"><b>▦</b> My Dashboard</a>
         <a href="schedule.php" class="<?= $page==='schedule'?'active':'' ?>"><b>◷</b> My Schedule</a>
         <a href="profile.php" class="<?= $page==='profile'?'active':'' ?>"><b>♙</b> My Profile</a>
+        <a href="overload.php" class="<?= $page==='overload'?'active':'' ?>"><b>＋</b> Overload Sessions</a>
+        <a href="designations.php" class="<?= $page==='designations'?'active':'' ?>"><b>★</b> My Designations</a>
+        <a href="notifications.php" class="<?= $page==='notifications'?'active':'' ?>"><b>🔔</b> Notifications <span class="nav-badge" data-notif-badge <?= $navUnread ? '' : 'hidden' ?>><?= $navUnread ?></span></a>
     </nav>
     <div class="sidebar-foot">
         <div class="avatar small"><?= h(strtoupper(mb_substr(preg_replace('/^(engr|dr|prof|mr|ms|mrs)\.?\s+/i', '', $facName), 0, 1))) ?></div>

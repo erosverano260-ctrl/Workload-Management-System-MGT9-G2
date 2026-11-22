@@ -4,6 +4,9 @@ require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/ui.php';
 requireRole('admin');
 $adminName = currentUserName() ?: 'Admin';
+if (!isset($conn) || !($conn instanceof mysqli)) { try { require_once __DIR__ . '/db.php'; $conn = (new database())->connect(); } catch (Throwable $e) { $conn = null; } }
+$navPending = $conn ? pending_approval_count($conn) : 0;                 // requests waiting for the chair
+$navUnread  = $conn ? unread_count($conn, 'admin', currentUserId()) : 0;  // unread notifications
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -11,20 +14,27 @@ $adminName = currentUserName() ?: 'Admin';
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= h(($title ?? 'Admin') . ' · EE Admin') ?></title>
-<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="<?= asset('style.css') ?>">
+<link rel="stylesheet" href="<?= asset('layout.css') ?>">
+<script>try{if(localStorage.getItem('navCollapsed')==='1')document.documentElement.classList.add('nav-collapsed')}catch(e){}</script>
 </head>
 <body>
 <div class="app-shell">
 
 <aside class="sidebar">
-    <div class="brand"><img src="../assets/ee-logo.svg" alt=""><span>EE Workload Management <small style="display:block;font-weight:600;color:var(--amber);font-size:11px">ADMIN</small></span></div>
+    <div class="brand"><img src="../assets/ee-logo.svg" alt=""><span>EE Workload Management <small style="display:block;font-weight:600;color:var(--amber);font-size:11px">ADMIN</small></span><button type="button" class="nav-toggle" id="navToggle" aria-label="Collapse menu" aria-expanded="true" title="Collapse menu">‹</button></div>
     <nav>
         <a href="index.php" class="<?= $page==='dashboard'?'active':'' ?>"><b>▦</b> Dashboard</a>
         <a href="courses.php" class="<?= $page==='courses'?'active':'' ?>"><b>▤</b> Course Catalog</a>
         <a href="classrooms.php" class="<?= $page==='rooms'?'active':'' ?>"><b>⌂</b> Classrooms</a>
         <a href="instructors.php" class="<?= $page==='instructors'?'active':'' ?>"><b>♙</b> Instructors</a>
+        <a href="approvals.php" class="<?= $page==='approvals'?'active':'' ?>"><b>✔</b> Approvals <span class="nav-badge" <?= $navPending ? '' : 'hidden' ?>><?= $navPending ?></span></a>
+        <a href="designations.php" class="<?= $page==='designations'?'active':'' ?>"><b>★</b> Designations</a>
         <a href="schedule.php" class="<?= $page==='schedule'?'active':'' ?>"><b>◷</b> Print/Create Schedules</a>
+        <a href="print.php" class="<?= $page==='print'?'active':'' ?>"><b>⎙</b> Print Forms</a>
+        <a href="notifications.php" class="<?= $page==='notifications'?'active':'' ?>"><b>🔔</b> Notifications <span class="nav-badge" data-notif-badge <?= $navUnread ? '' : 'hidden' ?>><?= $navUnread ?></span></a>
         <a href="account.php" class="<?= $page==='account'?'active':'' ?>"><b>⚙</b> My Account</a>
+        
     </nav>
     <div class="sidebar-foot">
         <div class="avatar small"><?= h(strtoupper(mb_substr($adminName, 0, 1))) ?></div>
