@@ -12,6 +12,7 @@ $conn = $db->connect();
 
 const WEEK_HOURS_PER_ROOM = 60;   // 7am-7pm, 5 days (same figure the Classrooms page uses)
 $DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
+$CLASS_TYPES = ['Lecture', 'Laboratory'];
 
 function one(mysqli $c, string $sql): array { return $c->query($sql)->fetch_assoc() ?: []; }
 function all(mysqli $c, string $sql): array { return $c->query($sql)->fetch_all(MYSQLI_ASSOC); }
@@ -67,13 +68,17 @@ $maxYear = max(1, max($byYear));
 $hour = (int)date('G');
 $greeting = $hour < 12 ? 'Good morning' : ($hour < 18 ? 'Good afternoon' : 'Good evening');
 $who = currentUserName() ?: 'Admin';
+$pendingApprovals = pending_approval_count($conn);
 
 require '../includes/header.php';
 ?>
-<link rel="stylesheet" href="<?= asset('ui.css') ?>">
-<script src="<?= asset('ui.js') ?>"></script>
+<link rel="stylesheet" href="../assets/ui.css">
+<script src="../assets/ui.js"></script>
 
 <section class="page-section">
+  <?php if ($pendingApprovals): ?>
+  <a href="approvals.php" class="ui-notice" style="display:block;text-decoration:none"><strong><?= $pendingApprovals ?> request<?= $pendingApprovals === 1 ? '' : 's' ?></strong> from instructors (designations and overload sessions) are waiting for the chair. Review them →</a>
+  <?php endif; ?>
   <div class="dash-welcome">
     <div>
       <h2><?= h($greeting) ?>, <?= h($who) ?></h2>
