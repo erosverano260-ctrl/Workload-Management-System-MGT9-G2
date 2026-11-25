@@ -83,7 +83,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const msg = f.dataset.confirm;
             if (e.defaultPrevented) return;
             if (msg && !f.dataset.confirmed && !window.UI && !confirm(msg)) { e.preventDefault(); return; }
-            showSpinner(f.querySelector('button[type=submit]'));
+            showSpinner(e.submitter || f.querySelector('button[type=submit]'));
         });
     });
 
@@ -106,8 +106,8 @@ function showSpinner(btn) {
     if (!btn || btn.dataset.loading) return;
     btn.dataset.loading = '1';
     btn.dataset.originalHtml = btn.innerHTML;
-    btn.innerHTML = '<span class="btn-spinner"></span> Processing…';
-    btn.disabled = true;
+    // Wait a tick: a disabled button is left out of the submitted form, so it must be disabled after the browser has collected the form data.
+    setTimeout(() => { btn.innerHTML = '<span class="btn-spinner"></span> Processing…'; btn.disabled = true; }, 0);
 }
 
 // Back/forward cache: undo the fade and any stuck "Processing…" buttons.
