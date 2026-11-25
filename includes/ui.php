@@ -67,3 +67,5 @@ function asset(string $file): string {
     $path = __DIR__ . '/../assets/' . $file;
     return '../assets/' . $file . (is_file($path) ? '?v=' . filemtime($path) : '');
 }
+
+require_once __DIR__ . '/notify.php';

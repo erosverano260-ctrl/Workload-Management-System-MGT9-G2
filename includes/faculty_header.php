@@ -7,6 +7,8 @@ if (!empty($_SESSION['must_change']) && ($page ?? '') !== 'profile') {
     header('Location: profile.php'); exit;
 }
 $facName = currentUserName() ?: 'Instructor';
+if (!isset($conn) || !($conn instanceof mysqli)) { try { require_once __DIR__ . '/db.php'; $conn = (new database())->connect(); } catch (Throwable $e) { $conn = null; } }
+$navUnread = $conn ? unread_count($conn, 'faculty', currentUserId()) : 0;     // unread notifications
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -31,6 +33,7 @@ $facName = currentUserName() ?: 'Instructor';
         <a href="profile.php" class="<?= $page==='profile'?'active':'' ?>"><b>♙</b> My Profile</a>
         <a href="overload.php" class="<?= $page==='overload'?'active':'' ?>"><b>＋</b> Overload Sessions</a>
         <a href="designations.php" class="<?= $page==='designations'?'active':'' ?>"><b>★</b> My Designations</a>
+        <a href="notifications.php" class="<?= $page==='notifications'?'active':'' ?>"><b>🔔</b> Notifications <span class="nav-badge" data-notif-badge <?= $navUnread ? '' : 'hidden' ?>><?= $navUnread ?></span></a>
     </nav>
     <div class="sidebar-foot">
         <div class="avatar small"><?= h(strtoupper(mb_substr(preg_replace('/^(engr|dr|prof|mr|ms|mrs)\.?\s+/i', '', $facName), 0, 1))) ?></div>

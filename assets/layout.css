@@ -19,3 +19,8 @@
 }
 @media (max-width: 640px) { .nav-toggle { display: none; } }
 @media print { .nav-toggle { display: none !important; } }
+
+/* sidebar badges (unread notifications / pending approvals) */
+.nav-badge { margin-left: auto; min-width: 20px; padding: 1px 7px; border-radius: 20px; background: var(--amber); color: var(--navy); font-size: 11px; font-weight: 800; text-align: center; }
+.nav-badge[hidden] { display: none; }
+@media (min-width: 641px) { html.nav-collapsed .nav-badge { display: none; } }

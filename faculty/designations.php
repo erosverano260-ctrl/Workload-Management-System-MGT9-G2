@@ -3,12 +3,13 @@ $page = 'designations'; $title = 'My Designations';
 require '../includes/db.php';
 require '../includes/auth.php';
 require '../includes/ui.php';
-require '../includes/print_helpers.php';          // nf(); also loads schedule_helpers.php
+require '../includes/approvals.php';              // nf(), designation_credit(); also loads print_helpers + schedule_helpers
 requireRole('faculty');
 
 $conn = (new database())->connect();
 $inst = loadInstructor($conn, currentUserId());
 $fid  = (int)$inst['faculty_id'];                  // always the signed-in instructor, never taken from the form
+ensure_approval_schema($conn);
 
 /* ---------- POST (post → redirect → get) ---------- */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -17,9 +18,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         if ($action === 'request') {
             $did = (int)($_POST['designation_id'] ?? 0);
-            $st = $conn->prepare("SELECT 1 FROM designations WHERE designation_id = ?");
+            $st = $conn->prepare("SELECT name FROM designations WHERE designation_id = ?");
             $st->bind_param('i', $did); $st->execute();
-            if (!$st->get_result()->fetch_row()) { flash_set('error', 'Pick a designation from the list.'); redirect('designations.php'); }
+            $dname = $st->get_result()->fetch_assoc()['name'] ?? null;
+            if ($dname === null) { flash_set('error', 'Pick a designation from the list.'); redirect('designations.php'); }
 
             $st = $conn->prepare("SELECT status FROM faculty_designations WHERE faculty_id = ? AND designation_id = ?");
             $st->bind_param('ii', $fid, $did); $st->execute();
@@ -31,10 +33,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $st = $conn->prepare("UPDATE faculty_designations SET status = 'Pending' WHERE faculty_id = ? AND designation_id = ?");
                 $st->bind_param('ii', $fid, $did); $st->execute();
                 flash_set('success', 'Request sent again. It is waiting for the chair.');
+                notify_admins($conn, 'request', $inst['faculty_name'] . ' asked again for the designation "' . $dname . '".', 'approvals.php?tab=designations');
             } else {
                 $st = $conn->prepare("INSERT INTO faculty_designations (faculty_id, designation_id) VALUES (?, ?)");
                 $st->bind_param('ii', $fid, $did); $st->execute();
                 flash_set('success', 'Request sent. It is waiting for the chair.');
+                notify_admins($conn, 'request', $inst['faculty_name'] . ' requested the designation "' . $dname . '".', 'approvals.php?tab=designations');
             }
         } elseif ($action === 'cancel') {
             $id = (int)($_POST['fd_id'] ?? 0);
@@ -49,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $all = $conn->query("SELECT designation_id, name, hours, service_credit FROM designations ORDER BY name")->fetch_all(MYSQLI_ASSOC);
-$st = $conn->prepare("SELECT fd.fd_id, fd.designation_id, fd.status, d.name, d.hours, d.service_credit
+$st = $conn->prepare("SELECT fd.fd_id, fd.designation_id, fd.status, fd.decision_note, d.name, d.hours, d.service_credit
                       FROM faculty_designations fd JOIN designations d ON d.designation_id = fd.designation_id
                       WHERE fd.faculty_id = ? ORDER BY fd.created_at DESC");
 $st->bind_param('i', $fid); $st->execute();
@@ -60,7 +64,7 @@ foreach ($mine as $m) if ($m['status'] !== 'Rejected') $blocked[$m['designation_
 $options = array_filter($all, fn($d) => !isset($blocked[$d['designation_id']]));
 
 $apprHrs = 0.0; $apprCredit = 0.0;
-foreach ($mine as $m) if ($m['status'] === 'Approved') { $apprHrs += (float)$m['hours']; $apprCredit += (float)$m['service_credit']; }
+foreach ($mine as $m) if ($m['status'] === 'Approved') { $apprHrs += (float)$m['hours']; $apprCredit += designation_credit($m); }
 
 require '../includes/faculty_header.php';
 $flash = flash_get();
@@ -82,7 +86,7 @@ $flash = flash_get();
 </div>
 
 <?php if ($flash): ?><div class="flash <?= h($flash['type']) ?>"><?= h($flash['msg']) ?></div><?php endif; ?>
-<div class="ui-notice">An approved designation prints in section C of your class program. Every request has to be approved by the chair first.</div>
+<div class="ui-notice">An approved designation prints in section C of your class program. Every request has to be approved by the chair first, and you get a notification with the decision. Designation hours count inside your <?= FACULTY_WEEK_HOURS ?>-hour week; service credit is extra pay outside it (Chair and Dean earn none).</div>
 
 <div class="profile-grid">
   <form method="post" class="f-card f-form">
@@ -97,7 +101,7 @@ $flash = flash_get();
     <div class="f-field"><label for="des">Designation</label>
       <select id="des" name="designation_id" required>
         <?php foreach ($options as $d): ?>
-        <option value="<?= (int)$d['designation_id'] ?>"><?= h($d['name']) ?> (<?= nf($d['hours']) ?> hrs, <?= nf($d['service_credit']) ?> credit)</option>
+        <option value="<?= (int)$d['designation_id'] ?>"><?= h($d['name']) ?> (<?= nf($d['hours']) ?> hrs, <?= nf(designation_credit($d)) ?> credit)</option>
         <?php endforeach; ?>
       </select></div>
     <div class="f-actions"><button type="submit" class="primary-btn">Send request</button></div>
@@ -114,8 +118,8 @@ $flash = flash_get();
       <tr><th>Designation</th><th>Hours</th><th>Credit</th><th>Status</th><th></th></tr>
       <?php foreach ($mine as $m): ?>
       <tr>
-        <td><?= h($m['name']) ?></td><td><?= nf($m['hours']) ?></td><td><?= nf($m['service_credit']) ?></td>
-        <td><span class="ds-badge <?= h(strtolower($m['status'])) ?>"><?= h($m['status']) ?></span></td>
+        <td><?= h($m['name']) ?></td><td><?= nf($m['hours']) ?></td><td><?= nf(designation_credit($m)) ?></td>
+        <td><span class="ds-badge <?= h(strtolower($m['status'])) ?>"><?= h($m['status']) ?></span><?php if (!empty($m['decision_note'])): ?><br><small class="muted">Chair: <?= h($m['decision_note']) ?></small><?php endif; ?></td>
         <td><?php if ($m['status'] === 'Pending'): ?>
           <form method="post" style="display:inline"><?= csrf_field() ?>
             <input type="hidden" name="action" value="cancel">

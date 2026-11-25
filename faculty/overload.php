@@ -3,13 +3,14 @@ $page = 'overload'; $title = 'Overload Sessions';
 require '../includes/db.php';
 require '../includes/auth.php';
 require '../includes/ui.php';
-require '../includes/print_helpers.php';   // workload_summary(), load_program_entries(), load_overload_sessions(), nf()
+require '../includes/approvals.php';       // workload_summary(), load_program_entries(), load_overload_sessions(), nf(), faculty_load()
 requireRole('faculty');
 date_default_timezone_set('Asia/Manila');
 
 $conn = (new database())->connect();
 $inst = loadInstructor($conn, currentUserId());
 $fid  = (int)$inst['faculty_id'];                       // always the signed-in instructor, never taken from the form
+ensure_approval_schema($conn);
 
 $entries = load_program_entries($conn, 'faculty', $fid);
 $w       = workload_summary($entries);
@@ -39,7 +40,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $st = $conn->prepare("INSERT INTO overload_sessions (faculty_id, day_of_week, start_time, end_time) VALUES (?, ?, ?, ?)");
                 $st->bind_param('isss', $fid, $day, $start, $end);
                 $st->execute();
-                flash_set('success', 'Overload session added.');
+                flash_set('success', 'Overload session added. It is waiting for the chair.');
+                notify_admins($conn, 'request', $inst['faculty_name'] . ' added an overload session: ' . $day . ' ' . date('g:i A', mktime($hour, 0)) . ' - ' . date('g:i A', mktime($hour + 1, 0)) . '.', 'approvals.php?tab=sessions');
             }
         } elseif ($action === 'delete_session') {
             $id = (int)($_POST['session_id'] ?? 0);
@@ -120,7 +122,7 @@ $flash = flash_get();
   <form method="post" class="f-card f-form">
     <?= csrf_field() ?>
     <input type="hidden" name="action" value="add_session">
-    <div><h3>Add a session</h3><p class="f-sub">Each session is exactly 1 hour. Add one for every overload hour you want to claim.</p></div>
+    <div><h3>Add a session</h3><p class="f-sub">Each session is exactly 1 hour (only 1-hour sessions are accepted). Add one for every overload hour you want to claim; the chair approves or rejects each one and you get a notification.</p></div>
     <?php if ($claim < 1): ?>
       <p class="f-hint">You have no whole overload hour to claim right now.</p>
     <?php elseif ($left < 1): ?>
@@ -156,7 +158,7 @@ $flash = flash_get();
       <tr>
         <td><?= h($x['day_of_week']) ?></td>
         <td><?= h($t12($x['start_time'])) ?> – <?= h($t12($x['end_time'])) ?></td>
-        <td><?= h($x['status']) ?></td>
+        <td><span class="ds-badge <?= h(strtolower($x['status'])) ?>"><?= h($x['status']) ?></span><?php if (!empty($x['decision_note'])): ?><br><small class="muted">Chair: <?= h($x['decision_note']) ?></small><?php endif; ?></td>
         <td><?php if ($x['status'] === 'Pending'): ?>
           <form method="post" style="display:inline"><?= csrf_field() ?>
             <input type="hidden" name="action" value="delete_session">

@@ -16,3 +16,16 @@
         sync();
     });
 })();
+
+/* live unread-notification badge: refreshes every 30 s without reloading the page */
+(function () {
+    const badges = document.querySelectorAll('[data-notif-badge]');
+    if (!badges.length) return;
+    function tick() {
+        fetch('notifications.php?count=1', { credentials: 'same-origin' })
+            .then(r => r.json())
+            .then(j => badges.forEach(b => { b.textContent = j.unread; b.hidden = !j.unread; }))
+            .catch(() => {});
+    }
+    setInterval(tick, 30000);
+})();

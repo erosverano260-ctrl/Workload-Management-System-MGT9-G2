@@ -20,10 +20,11 @@ require '../includes/faculty_header.php';
     <div><span class="eyebrow">OFFICIAL FORM</span><h2>My class program</h2></div>
     <div style="display:flex;gap:10px">
         <a href="schedule.php" class="outline-btn" style="display:inline-flex;align-items:center;height:42px;padding:0 16px">← Back</a>
+        <a href="export_excel.php" class="outline-btn" style="display:inline-flex;align-items:center;height:42px;padding:0 16px" title="Excel file, long bond (8.5 x 13 in)">⬇ Download Excel</a>
         <button class="primary-btn" type="button" onclick="window.print()">🖨 Print / Save as PDF</button>
     </div>
 </div>
-<?php render_instructor_program($inst, $entries, load_designations($conn, (int)$inst['faculty_id'])); ?>
+<?php render_instructor_program($inst, $entries, load_designations($conn, (int)$inst['faculty_id']), load_overload_sessions($conn, (int)$inst['faculty_id'])); ?>
 </section>
 
 <?php require '../includes/footer.php'; ?>

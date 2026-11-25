@@ -27,7 +27,11 @@ require '../includes/header.php';
 <section class="page-section">
 <div class="section-heading no-print">
     <div><span class="eyebrow">OFFICIAL FORMS</span><h2>Print forms</h2></div>
-    <button class="primary-btn" type="button" onclick="window.print()">🖨 Print / Save as PDF</button>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <a href="export_excel.php?type=<?= h($type) ?>" class="outline-btn" style="display:inline-flex;align-items:center;height:42px;padding:0 16px" title="Every <?= h(strtolower($types[$type])) ?> in one Excel file, long bond (8.5 x 13 in)">⬇ Excel: <?= h($types[$type]) ?></a>
+        <a href="export_excel.php" class="outline-btn" style="display:inline-flex;align-items:center;height:42px;padding:0 16px" title="All four forms in one Excel file, long bond (8.5 x 13 in)">⬇ Excel: all forms</a>
+        <button class="primary-btn" type="button" onclick="window.print()">🖨 Print / Save as PDF</button>
+    </div>
 </div>
 
 <nav class="print-tabs no-print">
@@ -61,7 +65,7 @@ if ($type === 'section') {
     $inst = null; foreach ($faculty as $f) if ($sel === (string)$f['faculty_id']) $inst = $f;
     $inst = $inst ?? ($faculty[0] ?? null);
     if (!$inst) { echo '<div class="empty">Add an instructor first.</div>'; }
-    else render_instructor_program($inst, load_program_entries($conn, 'faculty', (int)$inst['faculty_id']), load_designations($conn, (int)$inst['faculty_id']));
+    else render_instructor_program($inst, load_program_entries($conn, 'faculty', (int)$inst['faculty_id']), load_designations($conn, (int)$inst['faculty_id']), load_overload_sessions($conn, (int)$inst['faculty_id']));
 } elseif ($type === 'room') {
     $list = $rooms;
     if ($sel !== '' && $sel !== 'all') $list = array_values(array_filter($rooms, fn($r) => (string)$r['room_id'] === $sel));

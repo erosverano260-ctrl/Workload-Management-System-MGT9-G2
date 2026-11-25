@@ -4,6 +4,9 @@ require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/ui.php';
 requireRole('admin');
 $adminName = currentUserName() ?: 'Admin';
+if (!isset($conn) || !($conn instanceof mysqli)) { try { require_once __DIR__ . '/db.php'; $conn = (new database())->connect(); } catch (Throwable $e) { $conn = null; } }
+$navPending = $conn ? pending_approval_count($conn) : 0;                 // requests waiting for the chair
+$navUnread  = $conn ? unread_count($conn, 'admin', currentUserId()) : 0;  // unread notifications
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -25,8 +28,11 @@ $adminName = currentUserName() ?: 'Admin';
         <a href="courses.php" class="<?= $page==='courses'?'active':'' ?>"><b>▤</b> Course Catalog</a>
         <a href="classrooms.php" class="<?= $page==='rooms'?'active':'' ?>"><b>⌂</b> Classrooms</a>
         <a href="instructors.php" class="<?= $page==='instructors'?'active':'' ?>"><b>♙</b> Instructors</a>
+        <a href="approvals.php" class="<?= $page==='approvals'?'active':'' ?>"><b>✔</b> Approvals <span class="nav-badge" <?= $navPending ? '' : 'hidden' ?>><?= $navPending ?></span></a>
+        <a href="designations.php" class="<?= $page==='designations'?'active':'' ?>"><b>★</b> Designations</a>
         <a href="schedule.php" class="<?= $page==='schedule'?'active':'' ?>"><b>◷</b> Print/Create Schedules</a>
         <a href="print.php" class="<?= $page==='print'?'active':'' ?>"><b>⎙</b> Print Forms</a>
+        <a href="notifications.php" class="<?= $page==='notifications'?'active':'' ?>"><b>🔔</b> Notifications <span class="nav-badge" data-notif-badge <?= $navUnread ? '' : 'hidden' ?>><?= $navUnread ?></span></a>
         <a href="account.php" class="<?= $page==='account'?'active':'' ?>"><b>⚙</b> My Account</a>
         
     </nav>
