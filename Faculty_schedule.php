@@ -125,7 +125,7 @@ require 'includes/header.php';
 </div>
 
 <div class="print-header" id="workloadPrintHeader">
-    <img src="assets/ee-logo.svg" alt="logo">
+    <img src="assets/ee-logo.png" alt="logo">
     <div>
         <div class="print-school">Institute of Integrated Electrical Engineers</div>
         <h3>Faculty Workload Schedule</h3>

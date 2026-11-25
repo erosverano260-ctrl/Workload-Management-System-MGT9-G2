@@ -64,12 +64,13 @@ if ($conn && $_SERVER['REQUEST_METHOD'] === 'POST') {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sign in — EE Workload System</title>
 <link rel="stylesheet" href="assets/style.css">
+<link rel="icon" type="image/png" href="assets/ee-logo.png">
 <link rel="stylesheet" href="assets/login.css">
 </head>
 <body class="login-body">
 <div class="login-wrap">
     <div class="login-brand">
-        <img src="assets/ee-logo.svg" alt="logo">
+        <img src="assets/ee-logo.png" alt="logo">
         <div>
             <strong>Institute of Integrated Electrical Engineers</strong>
             <small>Workload Management System</small>

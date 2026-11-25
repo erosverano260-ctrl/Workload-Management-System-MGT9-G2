@@ -40,12 +40,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>First-time setup — EE Workload System</title>
 <link rel="stylesheet" href="assets/style.css">
+<link rel="icon" type="image/png" href="assets/ee-logo.png">
 <link rel="stylesheet" href="assets/login.css">
 </head>
 <body class="login-body">
 <div class="login-wrap">
     <div class="login-brand">
-        <img src="assets/ee-logo.svg" alt="logo">
+        <img src="assets/ee-logo.png" alt="logo">
         <div><strong>Create the administrator</strong><small>This page disappears once an admin exists</small></div>
     </div>
     <?php if ($error): ?><div class="login-error"><?= h($error) ?></div><?php endif; ?>
