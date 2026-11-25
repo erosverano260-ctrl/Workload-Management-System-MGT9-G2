@@ -15,11 +15,39 @@ $tab = ($_GET['tab'] ?? 'designations') === 'sessions' ? 'sessions' : 'designati
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_verify();
     $action  = $_POST['action'] ?? '';
-    $approve = ($_POST['decision'] ?? '') === 'approve';
+    $decision = (string)($_POST['decision'] ?? '');
+    $approve = $decision === 'approve';
     $note    = mb_substr(post_str('note'), 0, 200);
     $word    = $approve ? 'approved' : 'rejected';
     try {
-        if ($action === 'design_decide') {
+        if (in_array($action, ['design_decide', 'session_decide', 'session_bulk'], true) && !in_array($decision, ['approve', 'reject'], true)) {
+            flash_set('error', 'No decision was received, so nothing was changed. Please press Approve or Reject again.');
+            redirect('approvals.php?tab=' . ($action === 'design_decide' ? 'designations' : 'sessions'));
+        }
+        if ($action === 'reopen') {                                   // undo a decision: back to Pending, note cleared, instructor told
+            $id = (int)($_POST['rid'] ?? 0);
+            if (($_POST['kind'] ?? '') === 'design') {
+                $tab = 'designations';
+                $st = $conn->prepare("SELECT fd.faculty_id, d.name FROM faculty_designations fd JOIN designations d ON d.designation_id = fd.designation_id WHERE fd.fd_id = ? AND fd.status <> 'Pending'");
+                $st->bind_param('i', $id); $st->execute();
+                if ($r = $st->get_result()->fetch_assoc()) {
+                    $st = $conn->prepare("UPDATE faculty_designations SET status = 'Pending', decided_at = NULL, decision_note = NULL WHERE fd_id = ?");
+                    $st->bind_param('i', $id); $st->execute();
+                    notify($conn, 'faculty', (int)$r['faculty_id'], 'request', 'The chair reopened your designation request "' . $r['name'] . '". It is waiting for a new decision.', 'designations.php');
+                    flash_set('success', 'Request reopened. It is back in the waiting list.');
+                }
+            } else {
+                $tab = 'sessions';
+                $st = $conn->prepare("SELECT faculty_id, day_of_week, start_time FROM overload_sessions WHERE session_id = ? AND status <> 'Pending'");
+                $st->bind_param('i', $id); $st->execute();
+                if ($r = $st->get_result()->fetch_assoc()) {
+                    $st = $conn->prepare("UPDATE overload_sessions SET status = 'Pending', decided_at = NULL, decision_note = NULL WHERE session_id = ?");
+                    $st->bind_param('i', $id); $st->execute();
+                    notify($conn, 'faculty', (int)$r['faculty_id'], 'request', 'The chair reopened your overload session (' . $r['day_of_week'] . ' ' . date('g:i A', strtotime($r['start_time'])) . '). It is waiting for a new decision.', 'overload.php');
+                    flash_set('success', 'Session reopened. It is back in the waiting list.');
+                }
+            }
+        } elseif ($action === 'design_decide') {
             $tab = 'designations';
             $err = decide_designation($conn, (int)($_POST['fd_id'] ?? 0), $approve, $note);
             $err ? flash_set('error', $err) : flash_set('success', 'Designation request ' . $word . '. The instructor was notified.');
@@ -58,10 +86,10 @@ $sessRows = $conn->query("SELECT os.session_id, os.faculty_id, os.day_of_week, o
 $byFaculty = [];
 foreach ($sessRows as $r) $byFaculty[(int)$r['faculty_id']][] = $r;
 
-$history = $conn->query("(SELECT 'Designation' AS kind, f.faculty_name, d.name AS what, fd.status, fd.decided_at, fd.decision_note
+$history = $conn->query("(SELECT 'Designation' AS kind, fd.fd_id AS rid, f.faculty_name, d.name AS what, fd.status, fd.decided_at, fd.decision_note
                           FROM faculty_designations fd JOIN faculty f ON f.faculty_id = fd.faculty_id JOIN designations d ON d.designation_id = fd.designation_id WHERE fd.status <> 'Pending')
                          UNION ALL
-                         (SELECT 'Overload session', f.faculty_name, CONCAT(os.day_of_week, ' ', TIME_FORMAT(os.start_time, '%l:%i %p'), ' - ', TIME_FORMAT(os.end_time, '%l:%i %p')), os.status, os.decided_at, os.decision_note
+                         (SELECT 'Overload session', os.session_id, f.faculty_name, CONCAT(os.day_of_week, ' ', TIME_FORMAT(os.start_time, '%l:%i %p'), ' - ', TIME_FORMAT(os.end_time, '%l:%i %p')), os.status, os.decided_at, os.decision_note
                           FROM overload_sessions os JOIN faculty f ON f.faculty_id = os.faculty_id WHERE os.status <> 'Pending')
                          ORDER BY decided_at DESC LIMIT 15")->fetch_all(MYSQLI_ASSOC);
 
@@ -93,10 +121,10 @@ $t12 = fn(string $t) => date('g:i A', strtotime($t));
       <small><?= nf($d['hours']) ?> hrs a week · <?= designation_is_chair_or_dean($d['name']) ? 'no service credit (Chair / Dean)' : nf($credit) . ' service credit (extra pay, outside the 40 hrs)' ?> · requested <?= h(time_ago($d['created_at'])) ?></small>
     </div>
     <form method="post" class="ap-form">
-      <?= csrf_field() ?><input type="hidden" name="action" value="design_decide"><input type="hidden" name="fd_id" value="<?= (int)$d['fd_id'] ?>">
+      <?= csrf_field() ?><input type="hidden" name="action" value="design_decide"><input type="hidden" name="decision" value=""><input type="hidden" name="fd_id" value="<?= (int)$d['fd_id'] ?>">
       <input type="text" name="note" maxlength="200" placeholder="Note to the instructor (optional)" aria-label="Note">
-      <button type="submit" name="decision" value="approve" class="primary-btn">Approve</button>
-      <button type="submit" name="decision" value="reject" class="danger-btn">Reject</button>
+      <button type="submit" name="decision" value="approve" onclick="this.form.elements['decision'][0].value='approve'" class="primary-btn">Approve</button>
+      <button type="submit" name="decision" value="reject" onclick="this.form.elements['decision'][0].value='reject'" class="danger-btn">Reject</button>
     </form>
   </div>
   <?php endforeach; endif; ?>
@@ -116,10 +144,10 @@ $t12 = fn(string $t) => date('g:i A', strtotime($t));
         <td><?= h($s['day_of_week']) ?></td><td><?= h($t12($s['start_time'])) ?> – <?= h($t12($s['end_time'])) ?></td><td><?= nf(session_hours($s)) ?> hr</td>
         <td>
           <form method="post" class="ap-form inline">
-            <?= csrf_field() ?><input type="hidden" name="action" value="session_decide"><input type="hidden" name="session_id" value="<?= (int)$s['session_id'] ?>">
+            <?= csrf_field() ?><input type="hidden" name="action" value="session_decide"><input type="hidden" name="decision" value=""><input type="hidden" name="session_id" value="<?= (int)$s['session_id'] ?>">
             <input type="text" name="note" maxlength="200" placeholder="Note (optional)" aria-label="Note">
-            <button type="submit" name="decision" value="approve" class="primary-btn">Approve</button>
-            <button type="submit" name="decision" value="reject" class="danger-btn">Reject</button>
+            <button type="submit" name="decision" value="approve" onclick="this.form.elements['decision'][0].value='approve'" class="primary-btn">Approve</button>
+            <button type="submit" name="decision" value="reject" onclick="this.form.elements['decision'][0].value='reject'" class="danger-btn">Reject</button>
           </form>
         </td>
       </tr>
@@ -127,10 +155,10 @@ $t12 = fn(string $t) => date('g:i A', strtotime($t));
     </table>
     <?php if (count($list) > 1): ?>
     <form method="post" class="ap-form ap-bulk">
-      <?= csrf_field() ?><input type="hidden" name="action" value="session_bulk"><input type="hidden" name="faculty_id" value="<?= (int)$fid ?>">
+      <?= csrf_field() ?><input type="hidden" name="action" value="session_bulk"><input type="hidden" name="decision" value=""><input type="hidden" name="faculty_id" value="<?= (int)$fid ?>">
       <span>All <?= count($list) ?> sessions of <?= h($list[0]['faculty_name']) ?>:</span>
-      <button type="submit" name="decision" value="approve" class="outline-btn">Approve all</button>
-      <button type="submit" name="decision" value="reject" class="outline-btn">Reject all</button>
+      <button type="submit" name="decision" value="approve" onclick="this.form.elements['decision'][0].value='approve'" class="outline-btn">Approve all</button>
+      <button type="submit" name="decision" value="reject" onclick="this.form.elements['decision'][0].value='reject'" class="outline-btn">Reject all</button>
     </form>
     <?php endif; ?>
   </div>
@@ -141,12 +169,15 @@ $t12 = fn(string $t) => date('g:i A', strtotime($t));
 <?php if (!$history): ?><div class="empty">Nothing decided yet.</div>
 <?php else: ?>
 <div class="table-card"><table>
-  <thead><tr><th>INSTRUCTOR</th><th>REQUEST</th><th>DECISION</th><th>WHEN</th><th>NOTE</th></tr></thead>
+  <thead><tr><th>INSTRUCTOR</th><th>REQUEST</th><th>DECISION</th><th>WHEN</th><th>NOTE</th><th></th></tr></thead>
   <tbody>
   <?php foreach ($history as $x): ?>
   <tr><td><?= h($x['faculty_name']) ?></td><td><?= h($x['kind']) ?>: <?= h($x['what']) ?></td>
       <td><span class="ds-badge <?= h(strtolower($x['status'])) ?>"><?= h($x['status']) ?></span></td>
-      <td><?= $x['decided_at'] ? h(time_ago($x['decided_at'])) : '' ?></td><td><?= h($x['decision_note'] ?? '') ?></td></tr>
+      <td><?= $x['decided_at'] ? h(time_ago($x['decided_at'])) : '' ?></td><td><?= h($x['decision_note'] ?? '') ?></td>
+      <td><form method="post" data-confirm="Put this request back in the waiting list? The instructor is told it was reopened." data-confirm-ok="Reopen">
+            <?= csrf_field() ?><input type="hidden" name="action" value="reopen"><input type="hidden" name="kind" value="<?= $x['kind'] === 'Designation' ? 'design' : 'session' ?>"><input type="hidden" name="rid" value="<?= (int)$x['rid'] ?>">
+            <button type="submit" class="outline-btn">Reopen</button></form></td></tr>
   <?php endforeach; ?>
   </tbody></table></div>
 <?php endif; ?>
