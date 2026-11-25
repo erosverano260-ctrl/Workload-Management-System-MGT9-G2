@@ -58,7 +58,7 @@ require '../includes/faculty_header.php';
 </div>
 
 <div class="print-header">
-    <img src="../assets/ee-logo.svg" alt="logo">
+    <img src="../assets/ee-logo.png" alt="logo">
     <div>
         <div class="print-school">INSTITUTE OF INTEGRATED ELECTRICAL ENGINEERS</div>
         <h3><?= h($inst['faculty_name']) ?> — Weekly Teaching Load</h3>
