@@ -81,3 +81,5 @@
     .sheet { border: 0; box-shadow: none; margin: 0 auto; padding: 0; max-width: none; overflow: visible; }
     .sheet, .sheet * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+
+.wl.claim { margin-top: 8px; }

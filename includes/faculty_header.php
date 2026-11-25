@@ -32,8 +32,7 @@ $navUnread = $conn ? unread_count($conn, 'faculty', currentUserId()) : 0;     //
         <a href="index.php" class="<?= $page==='dashboard'?'active':'' ?>"><b>▦</b> My Dashboard</a>
         <a href="schedule.php" class="<?= $page==='schedule'?'active':'' ?>"><b>◷</b> My Schedule</a>
         <a href="profile.php" class="<?= $page==='profile'?'active':'' ?>"><b>♙</b> My Profile</a>
-        <a href="overload.php" class="<?= $page==='overload'?'active':'' ?>"><b>＋</b> Overload Sessions</a>
-        <a href="designations.php" class="<?= $page==='designations'?'active':'' ?>"><b>★</b> My Designations</a>
+        <a href="other_workload.php" class="<?= ($page ?? '') === 'other_workload' ? 'active' : '' ?>">📋 Other Functions &amp; Designation</a>
         <a href="notifications.php" class="<?= $page==='notifications'?'active':'' ?>"><b>🔔</b> Notifications <span class="nav-badge" data-notif-badge <?= $navUnread ? '' : 'hidden' ?>><?= $navUnread ?></span></a>
     </nav>
     <div class="sidebar-foot">

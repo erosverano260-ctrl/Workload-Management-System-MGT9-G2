@@ -4,25 +4,35 @@ require '../includes/db.php';
 require '../includes/auth.php';
 require '../includes/ui.php';
 require '../includes/approvals.php';
+require_once '../includes/schedule_helpers.php';
 requireRole('admin');
 date_default_timezone_set('Asia/Manila');
 
 $conn = (new database())->connect();
 ensure_approval_schema($conn);
-$tab = ($_GET['tab'] ?? 'designations') === 'sessions' ? 'sessions' : 'designations';
+ensure_schedule_change_schema($conn);
 
-/* ---------- POST: the chair approves or rejects (post → redirect → get) ---------- */
+$reqTab = $_GET['tab'] ?? 'designations';
+$tab = in_array($reqTab, ['designations', 'sessions', 'schedules'], true) ? $reqTab : 'designations';
+$t12 = fn(string $t) => date('g:i A', strtotime($t));
+
+/* ---------- POST: the chair approves or rejects (post -> redirect -> get) ---------- */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_verify();
-    $action  = $_POST['action'] ?? '';
+    $action   = $_POST['action'] ?? '';
     $decision = (string)($_POST['decision'] ?? '');
-    $approve = $decision === 'approve';
-    $note    = mb_substr(post_str('note'), 0, 200);
-    $word    = $approve ? 'approved' : 'rejected';
+    $approve  = $decision === 'approve';
+    $note     = mb_substr(post_str('note'), 0, 200);
+    $word     = $approve ? 'approved' : 'rejected';
     try {
-        if (in_array($action, ['design_decide', 'session_decide', 'session_bulk'], true) && !in_array($decision, ['approve', 'reject'], true)) {
+        if (in_array($action, ['design_decide', 'session_decide', 'session_bulk', 'schedule_decide'], true) && !in_array($decision, ['approve', 'reject'], true)) {
+            $errTab = match ($action) {
+                'design_decide'   => 'designations',
+                'schedule_decide' => 'schedules',
+                default           => 'sessions',
+            };
             flash_set('error', 'No decision was received, so nothing was changed. Please press Approve or Reject again.');
-            redirect('approvals.php?tab=' . ($action === 'design_decide' ? 'designations' : 'sessions'));
+            redirect('approvals.php?tab=' . $errTab);
         }
         if ($action === 'reopen') {                                   // undo a decision: back to Pending, note cleared, instructor told
             $id = (int)($_POST['rid'] ?? 0);
@@ -67,6 +77,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             if ($errs) flash_set($ok ? 'success' : 'error', ucfirst($word) . " $ok session(s). Not done: " . implode(' | ', array_unique($errs)));
             else       flash_set('success', ucfirst($word) . " $ok session(s). The instructor was notified.");
+        } elseif ($action === 'schedule_decide') {
+            $tab = 'schedules';
+            $err = decide_schedule_change($conn, (int)($_POST['request_id'] ?? 0), $approve, $note);
+            $err ? flash_set('error', $err) : flash_set('success', 'Schedule change request ' . $word . '. The instructor was notified.');
         }
     } catch (mysqli_sql_exception $e) {
         flash_set('error', 'Could not save that decision. Please try again.');
@@ -86,16 +100,24 @@ $sessRows = $conn->query("SELECT os.session_id, os.faculty_id, os.day_of_week, o
 $byFaculty = [];
 foreach ($sessRows as $r) $byFaculty[(int)$r['faculty_id']][] = $r;
 
+$scheduleChanges = $conn->query("SELECT r.request_id, r.old_day, r.old_start, r.old_end, r.new_day, r.new_start, r.new_end, r.faculty_note, r.created_at, f.faculty_name
+                                 FROM schedule_change_requests r
+                                 JOIN faculty f ON f.faculty_id = r.faculty_id
+                                 WHERE r.status = 'Pending'
+                                 ORDER BY r.created_at, r.request_id")->fetch_all(MYSQLI_ASSOC);
+
 $history = $conn->query("(SELECT 'Designation' AS kind, fd.fd_id AS rid, f.faculty_name, d.name AS what, fd.status, fd.decided_at, fd.decision_note
                           FROM faculty_designations fd JOIN faculty f ON f.faculty_id = fd.faculty_id JOIN designations d ON d.designation_id = fd.designation_id WHERE fd.status <> 'Pending')
                          UNION ALL
                          (SELECT 'Overload session', os.session_id, f.faculty_name, CONCAT(os.day_of_week, ' ', TIME_FORMAT(os.start_time, '%l:%i %p'), ' - ', TIME_FORMAT(os.end_time, '%l:%i %p')), os.status, os.decided_at, os.decision_note
                           FROM overload_sessions os JOIN faculty f ON f.faculty_id = os.faculty_id WHERE os.status <> 'Pending')
+                         UNION ALL
+                         (SELECT 'Schedule change', r.request_id, f.faculty_name, CONCAT(r.old_day, ' ', TIME_FORMAT(r.old_start, '%l:%i %p'), ' -> ', r.new_day, ' ', TIME_FORMAT(r.new_start, '%l:%i %p'), ' - ', TIME_FORMAT(r.new_end, '%l:%i %p')), r.status, r.decided_at, r.decision_note
+                          FROM schedule_change_requests r JOIN faculty f ON f.faculty_id = r.faculty_id WHERE r.status <> 'Pending')
                          ORDER BY decided_at DESC LIMIT 15")->fetch_all(MYSQLI_ASSOC);
 
 require '../includes/header.php';
 $flash = flash_get();
-$t12 = fn(string $t) => date('g:i A', strtotime($t));
 ?>
 <link rel="stylesheet" href="<?= asset('portal.css') ?>">
 <script src="<?= asset('ui.js') ?>"></script>
@@ -109,6 +131,7 @@ $t12 = fn(string $t) => date('g:i A', strtotime($t));
 <nav class="ap-tabs">
     <a href="?tab=designations" class="<?= $tab === 'designations' ? 'on' : '' ?>">Designation requests <span class="ap-count"><?= count($designations) ?></span></a>
     <a href="?tab=sessions" class="<?= $tab === 'sessions' ? 'on' : '' ?>">Overload sessions <span class="ap-count"><?= count($sessRows) ?></span></a>
+    <a href="?tab=schedules" class="<?= $tab === 'schedules' ? 'on' : '' ?>">Schedule changes <span class="ap-count"><?= count($scheduleChanges) ?></span></a>
 </nav>
 
 <?php if ($tab === 'designations'): ?>
@@ -129,14 +152,14 @@ $t12 = fn(string $t) => date('g:i A', strtotime($t));
   </div>
   <?php endforeach; endif; ?>
 
-<?php else: ?>
+<?php elseif ($tab === 'sessions'): ?>
   <?php if (!$byFaculty): ?><div class="empty">No overload sessions are waiting.</div>
   <?php else: foreach ($byFaculty as $fid => $list):
       $L = faculty_load_for($conn, $fid); ?>
   <div class="ap-card ap-block">
     <div class="ap-main">
       <strong><?= h($list[0]['faculty_name']) ?></strong>
-      <small>Overload <?= nf($L['overload']) ?> hrs → <?= nf($L['claim']) ?> hr(s) to claim · approved <?= nf($L['sessApproved']) ?> · waiting <?= nf($L['sessPending']) ?> · teaching service credit <?= nf($L['credit']) ?></small>
+      <small>Overload <?= nf($L['overload']) ?> hrs -> <?= nf($L['claim']) ?> hr(s) to claim · approved <?= nf($L['sessApproved']) ?> · waiting <?= nf($L['sessPending']) ?> · teaching service credit <?= nf($L['credit']) ?></small>
     </div>
     <table class="ap-table">
       <?php foreach ($list as $s): ?>
@@ -163,6 +186,33 @@ $t12 = fn(string $t) => date('g:i A', strtotime($t));
     <?php endif; ?>
   </div>
   <?php endforeach; endif; ?>
+
+<?php else: ?>
+  <?php if (!$scheduleChanges): ?><div class="empty">No schedule change requests are waiting.</div>
+  <?php else: ?>
+  <div class="table-card"><table>
+    <thead><tr><th>INSTRUCTOR</th><th>CURRENT SLOT</th><th>REQUESTED SLOT</th><th>NOTE</th><th>REQUESTED</th><th>DECISION</th></tr></thead>
+    <tbody>
+    <?php foreach ($scheduleChanges as $r): ?>
+    <tr>
+      <td><strong><?= h($r['faculty_name']) ?></strong></td>
+      <td><strong><?= h($r['old_day']) ?></strong><br><?= h($t12($r['old_start'])) ?> – <?= h($t12($r['old_end'])) ?></td>
+      <td><strong><?= h($r['new_day']) ?></strong><br><?= h($t12($r['new_start'])) ?> – <?= h($t12($r['new_end'])) ?></td>
+      <td><?= h($r['faculty_note'] ?? '') ?></td>
+      <td><?= h(time_ago($r['created_at'])) ?></td>
+      <td>
+        <form method="post" class="ap-form inline">
+          <?= csrf_field() ?><input type="hidden" name="action" value="schedule_decide"><input type="hidden" name="decision" value=""><input type="hidden" name="request_id" value="<?= (int)$r['request_id'] ?>">
+          <input type="text" name="note" maxlength="200" placeholder="Note (optional)" aria-label="Note">
+          <button type="submit" name="decision" value="approve" onclick="this.form.elements['decision'][0].value='approve'" class="primary-btn">Approve</button>
+          <button type="submit" name="decision" value="reject" onclick="this.form.elements['decision'][0].value='reject'" class="danger-btn">Reject</button>
+        </form>
+      </td>
+    </tr>
+    <?php endforeach; ?>
+    </tbody>
+  </table></div>
+  <?php endif; ?>
 <?php endif; ?>
 
 <h3 class="ap-h">Recent decisions</h3>
@@ -175,9 +225,11 @@ $t12 = fn(string $t) => date('g:i A', strtotime($t));
   <tr><td><?= h($x['faculty_name']) ?></td><td><?= h($x['kind']) ?>: <?= h($x['what']) ?></td>
       <td><span class="ds-badge <?= h(strtolower($x['status'])) ?>"><?= h($x['status']) ?></span></td>
       <td><?= $x['decided_at'] ? h(time_ago($x['decided_at'])) : '' ?></td><td><?= h($x['decision_note'] ?? '') ?></td>
-      <td><form method="post" data-confirm="Put this request back in the waiting list? The instructor is told it was reopened." data-confirm-ok="Reopen">
+      <td><?php if ($x['kind'] !== 'Schedule change'): ?>
+          <form method="post" data-confirm="Put this request back in the waiting list? The instructor is told it was reopened." data-confirm-ok="Reopen">
             <?= csrf_field() ?><input type="hidden" name="action" value="reopen"><input type="hidden" name="kind" value="<?= $x['kind'] === 'Designation' ? 'design' : 'session' ?>"><input type="hidden" name="rid" value="<?= (int)$x['rid'] ?>">
-            <button type="submit" class="outline-btn">Reopen</button></form></td></tr>
+            <button type="submit" class="outline-btn">Reopen</button></form>
+          <?php endif; ?></td></tr>
   <?php endforeach; ?>
   </tbody></table></div>
 <?php endif; ?>

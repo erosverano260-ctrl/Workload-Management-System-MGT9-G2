@@ -3,6 +3,7 @@ $page = 'notifications'; $title = 'Notifications';
 require '../includes/db.php';
 require '../includes/auth.php';
 require '../includes/ui.php';
+require_once '../includes/notify.php';
 requireRole('admin');
 
 $conn = (new database())->connect();
