@@ -68,6 +68,7 @@ function load_overload_sessions(mysqli $c, int $facultyId): array {
     $st->execute();
     return $st->get_result()->fetch_all(MYSQLI_ASSOC);
 }
+
 /** An instructor's APPROVED designations (section C of the class program), with the hours and service credit each carries. */
 function load_designations(mysqli $c, int $facultyId): array {
     $st = $c->prepare("SELECT d.designation_id, d.name, d.hours, d.service_credit
@@ -78,9 +79,61 @@ function load_designations(mysqli $c, int $facultyId): array {
     return $st->get_result()->fetch_all(MYSQLI_ASSOC);
 }
 
+if (!function_exists('ensure_other_workload_schema')) {
+    function ensure_other_workload_schema(mysqli $c): void {
+        static $done = false;
+        if ($done) return;
+        $done = true;
+
+        try {
+            $c->query("CREATE TABLE IF NOT EXISTS faculty_other_workload (
+                faculty_id INT NOT NULL PRIMARY KEY,
+                research_hrs DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+                extension_hrs DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+                imp_hrs DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+                consultation_hrs DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+                extra_designation_hrs DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+                extra_designation_label VARCHAR(120) NOT NULL DEFAULT '',
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=latin1");
+        } catch (Throwable $e) {}
+    }
+}
+
+if (!function_exists('load_other_workload')) {
+    function load_other_workload(mysqli $c, int $facultyId): array {
+        ensure_other_workload_schema($c);
+        $defaults = [
+            'research_hrs' => 0.0,
+            'extension_hrs' => 0.0,
+            'imp_hrs' => 0.0,
+            'consultation_hrs' => 0.0,
+            'extra_designation_hrs' => 0.0,
+            'extra_designation_label' => '',
+        ];
+        if ($facultyId <= 0) return $defaults;
+
+        $st = $c->prepare("SELECT research_hrs, extension_hrs, imp_hrs, consultation_hrs, extra_designation_hrs, extra_designation_label
+                           FROM faculty_other_workload WHERE faculty_id = ? LIMIT 1");
+        if (!$st) return $defaults;
+        $st->bind_param('i', $facultyId);
+        $st->execute();
+        $row = $st->get_result()->fetch_assoc();
+        if (!$row) return $defaults;
+
+        return [
+            'research_hrs' => (float)$row['research_hrs'],
+            'extension_hrs' => (float)$row['extension_hrs'],
+            'imp_hrs' => (float)$row['imp_hrs'],
+            'consultation_hrs' => (float)$row['consultation_hrs'],
+            'extra_designation_hrs' => (float)$row['extra_designation_hrs'],
+            'extra_designation_label' => (string)$row['extra_designation_label'],
+        ];
+    }
+}
+
 /** One row per subject+section with lecture/lab hours, plus the load maths used by the workload matrix (lab hours count x0.7). */
 function workload_summary(array $entries): array {
-    // 1) one row per subject + section + type (lecture / lab); the workload matrix uses these
     $rows = [];
     foreach ($entries as $e) {
         $isLab = entry_is_lab($e);
@@ -90,7 +143,6 @@ function workload_summary(array $entries): array {
         $rows[$k]['mins'] += timeToMin($e['end_time']) - timeToMin($e['start_time']);
         $rows[$k]['rooms'][$e['room_name']] = true;
     }
-    // A subject with both a lecture and a lab block: count its units once (on the lecture row).
     foreach (array_keys($rows) as $k) {
         if ($rows[$k]['lab'] && isset($rows[substr($k, 0, -3) . 'lec'])) $rows[$k]['units'] = 0.0;
     }
@@ -105,7 +157,6 @@ function workload_summary(array $entries): array {
     }
     unset($r);
 
-    // 2) one row per subject + section holding BOTH lecture and lab hours; the instructor's class program uses these
     $subjects = [];
     foreach ($rows as $row) {
         $k = $row['code'] . '|' . $row['section'];
@@ -114,15 +165,14 @@ function workload_summary(array $entries): array {
     }
 
     $np = count($preps);
-    $allowed = $np >= 5 ? 15 : ($np >= 3 ? 18 : 21);          // regular load by number of preparations
+    $allowed = $np >= 5 ? 15 : ($np >= 3 ? 18 : 21);
     $comp = $lec + 0.7 * $lab;
-    $over   = max(0, round($comp - $allowed, 1));      // never negative
-    $claim  = floor($over + 1e-9);                      // whole hours that can be claimed as overload sessions
-    $credit = round($over - $claim, 1);                 // the leftover below 1 hour = teaching service credit
+    $over   = max(0, round($comp - $allowed, 1));
+    $claim  = floor($over + 1e-9);
+    $credit = round($over - $claim, 1);
     return ['rows' => array_values($rows), 'subjects' => array_values($subjects), 'lec' => $lec, 'lab' => $lab, 'units' => $unitsLec + $unitsLab, 'unitsLec' => $unitsLec, 'unitsLab' => $unitsLab,
             'preps' => $np, 'allowed' => $allowed, 'comp' => round($comp, 1), 'overload' => $over, 'claim' => $claim, 'credit' => $credit];
 }
-
 
 function nf($n): string { $n = round((float)$n, 1); return $n == (int)$n ? (string)(int)$n : (string)$n; }
 
@@ -155,9 +205,9 @@ function print_header(string $title, string $refKey, string $subtitle = ''): voi
 function timetable_html(array $entries, callable $lines, array $days = FAC_DAYS, bool $period = false): string {
     $lab = fn(int $m) => ((intdiv($m, 60) % 12) ?: 12) . ':' . sprintf('%02d', $m % 60);
     $rows = [];
-    for ($m = 420; $m < 720; $m += 30)  $rows[] = $lab($m) . ' - ' . $lab($m + 30);   // rows 0-9
-    $rows[] = '12:00 - 1:00';                                                           // row 10 = lunch
-    for ($m = 780; $m < 1140; $m += 30) $rows[] = $lab($m) . ' - ' . $lab($m + 30);   // rows 11-22
+    for ($m = 420; $m < 720; $m += 30)  $rows[] = $lab($m) . ' - ' . $lab($m + 30);
+    $rows[] = '12:00 - 1:00';
+    for ($m = 780; $m < 1140; $m += 30) $rows[] = $lab($m) . ' - ' . $lab($m + 30);
     $rowOf = fn(int $m) => $m < 720 ? intdiv($m - 420, 30) : 11 + intdiv($m - 780, 30);
     $endOf = fn(int $m) => $m <= 720 ? intdiv($m - 420 + 29, 30) : 11 + intdiv($m - 780 + 29, 30);
 
@@ -201,13 +251,49 @@ function timetable_html(array $entries, callable $lines, array $days = FAC_DAYS,
 }
 
 /* ====================== 1. INSTRUCTOR'S CLASS PROGRAM ====================== */
-function render_instructor_program(array $inst, array $entries, array $designations = [], array $sessions = []): void {
-    $c = pcfg(); $L = faculty_load($entries, $designations, $sessions);
+function render_instructor_program(array $inst, array $entries, array $designations = [], array $sessions = [], array $otherWorkload = []): void {
+    $c = pcfg();
+    $L = faculty_load($entries, $designations, $sessions);
+
+    if (empty($otherWorkload) && !empty($GLOBALS['conn']) && ($GLOBALS['conn'] instanceof mysqli) && !empty($inst['faculty_id']) && function_exists('load_other_workload')) {
+        $otherWorkload = load_other_workload($GLOBALS['conn'], (int)$inst['faculty_id']);
+    }
+
+    $ow = array_merge([
+        'research_hrs' => 0.0,
+        'extension_hrs' => 0.0,
+        'imp_hrs' => 0.0,
+        'consultation_hrs' => 0.0,
+        'extra_designation_hrs' => 0.0,
+        'extra_designation_label' => '',
+    ], $otherWorkload);
+
+    $otherItems = [
+        ['Research',     (float)$ow['research_hrs']],
+        ['Extension',    (float)$ow['extension_hrs']],
+        ['IMP',          (float)$ow['imp_hrs']],
+        ['Consultation', (float)$ow['consultation_hrs']],
+    ];
+    $subTotalB = round(array_sum(array_map(fn($x) => $x[1], $otherItems)), 2);
+
+    $approvedDesHrs = round((float)($L['desHrs'] ?? 0.0), 2);
+    $extraDesHrs    = round((float)$ow['extra_designation_hrs'], 2);
+    $subTotalC      = round($approvedDesHrs + $extraDesHrs, 2);
+
+    $secA      = round((float)($L['comp'] ?? 0.0), 2);
+    $grandTot  = round($secA + $subTotalB + $subTotalC, 2);
+    $target40  = defined('FACULTY_WEEK_HOURS') ? (float)FACULTY_WEEK_HOURS : 40.0;
+    $diff40    = round($grandTot - $target40, 2);
+    $needed40  = max(0.0, round($target40 - ($secA + $subTotalB + $subTotalC), 2));
+
     $blank = max(0, 8 - count($L['subjects']));
-    $approved = array_values(array_filter($sessions, fn($x) => $x['status'] === 'Approved'));
-    $t12 = fn(string $t) => date('g:i A', strtotime($t));
-    $remarks = [['No. of Preparations:', (string)$L['preps']], ['Service Credits:', nf($L['serviceCredit'])], ['Teaching Overload:', nf($L['overload'])],
-                ['Overload hrs to claim:', nf($L['claim'])], ['Teaching Service Credit:', nf($L['credit'])]];
+    $remarks = [
+        ['No. of Preparations:', (string)$L['preps']],
+        ['Service Credits:', nf($L['serviceCredit'])],
+        ['Teaching Overload:', nf($L['overload'])],
+        ['Teaching Service Credit:', nf($L['credit'])],
+        ['Needed for 40 hrs:', nf($needed40)],
+    ];
 ?>
 <div class="sheet sheet-instructor">
   <?php print_header("INSTRUCTOR'S CLASS PROGRAM", 'instructor'); ?>
@@ -229,34 +315,40 @@ function render_instructor_program(array $inst, array $entries, array $designati
     <?php endforeach; for ($i = 0; $i < $blank; $i++): $rm = $remarks[count($L['subjects']) + $i + 1] ?? ['', '']; ?>
     <tr><td class="l">&nbsp;</td><td></td><td></td><td></td><td><?= h($rm[0]) ?></td><td class="r"><?= h($rm[1]) ?></td></tr>
     <?php endfor; ?>
-    <tr class="sub"><td class="r b">Sub-Total</td><td><?= nf($L['lec']) ?></td><td><?= nf($L['lab']) ?></td><td><?= nf($L['comp']) ?></td><td colspan="2"></td></tr>
-    <tr><td class="r">Regular load for <?= (int)$L['preps'] ?> prep<?= $L['preps'] === 1 ? '' : 's' ?> (max <?= (int)$L['allowed'] ?> hrs, counted in the <?= FACULTY_WEEK_HOURS ?>)</td><td></td><td></td><td><?= nf($L['regular']) ?></td><td colspan="2"></td></tr>
+    <tr class="sub"><td class="r b">Sub-Total</td><td><?= nf($L['lec']) ?></td><td><?= nf($L['lab']) ?></td><td><?= nf($secA) ?></td><td colspan="2"></td></tr>
+
     <tr><td class="l b">B. Other Functions:</td><td></td><td></td><td></td><td colspan="2" class="b">Total Number of Students:</td></tr>
-    <?php foreach (['Research', 'Extension', 'IMP', 'Consultation'] as $o): ?><tr><td class="l"><?= $o ?></td><td></td><td></td><td></td><td colspan="2"></td></tr><?php endforeach; ?>
-    <tr class="sub"><td class="r b">Sub-Total (fills the <?= FACULTY_WEEK_HOURS ?>-hr week)</td><td></td><td></td><td><?= nf($L['other']) ?></td><td colspan="2"></td></tr>
+    <?php foreach ($otherItems as [$label, $hrs]): ?>
+    <tr><td class="l"><?= h($label) ?></td><td></td><td></td><td><?= $hrs > 0 ? nf($hrs) : '' ?></td><td colspan="2"></td></tr>
+    <?php endforeach; ?>
+    <tr class="sub"><td class="r b">Sub-Total (fills the <?= nf($target40) ?>-hr week)</td><td></td><td></td><td><?= nf($subTotalB) ?></td><td colspan="2"></td></tr>
+
     <tr><td class="l b">C. Designation</td><td></td><td></td><td></td><td colspan="2"></td></tr>
     <?php foreach ($designations as $dg): ?>
     <tr><td class="l"><?= h($dg['name']) ?></td><td><?= nf($dg['hours']) ?></td><td></td><td><?= nf($dg['hours']) ?></td><td colspan="2"><?= designation_credit($dg) > 0 ? 'Service credit: ' . nf(designation_credit($dg)) : '' ?></td></tr>
-    <?php endforeach; for ($i = count($designations); $i < 2; $i++): ?>
+    <?php endforeach; ?>
+    <?php if ($extraDesHrs > 0 || trim($ow['extra_designation_label']) !== ''): ?>
+    <tr><td class="l"><?= h(trim($ow['extra_designation_label']) !== '' ? $ow['extra_designation_label'] : 'Additional Designation') ?></td><td></td><td></td><td><?= nf($extraDesHrs) ?></td><td colspan="2"></td></tr>
+    <?php endif; ?>
+    <?php $desShown = count($designations) + (($extraDesHrs > 0 || trim($ow['extra_designation_label']) !== '') ? 1 : 0);
+          for ($i = $desShown; $i < 2; $i++): ?>
     <tr><td class="l">&nbsp;</td><td></td><td></td><td></td><td colspan="2"></td></tr>
     <?php endfor; ?>
-    <tr class="sub"><td class="r b">Sub-Total</td><td></td><td></td><td><?= nf($L['desHrs']) ?></td><td colspan="2"></td></tr>
-    <tr class="grand"><td colspan="3" class="b">Grand Total (A+B+C)</td><td class="b"><?= nf($L['weekTotal']) ?></td>
-        <td colspan="2" class="b"><?= $L['over40'] > 0 ? 'OVER ' . FACULTY_WEEK_HOURS . ' hrs by ' . nf($L['over40']) : 'of ' . FACULTY_WEEK_HOURS . ' hrs' ?></td></tr>
-  </table>
+    <tr class="sub"><td class="r b">Sub-Total</td><td></td><td></td><td><?= nf($subTotalC) ?></td><td colspan="2"></td></tr>
 
-  <table class="wl claim">
-    <tr class="h"><th colspan="6">CLAIM FOR TEACHING OVERLOAD</th></tr>
-    <tr class="h"><th>Day</th><th>Time</th><th>Hours</th><th colspan="3">Overload computation</th></tr>
-    <?php $cl = [['Teaching Overload (total - regular load):', nf($L['overload'])], ['Whole hours to claim as sessions:', nf($L['claim'])],
-                 ['Teaching Service Credit (remainder under 1 hr):', nf($L['credit'])]];
-    $rowsN = max(4, count($approved));
-    for ($i = 0; $i < $rowsN; $i++): $x = $approved[$i] ?? null; $cc = $cl[$i] ?? ['', '']; ?>
-    <tr><td><?= $x ? h($x['day_of_week']) : '&nbsp;' ?></td><td><?= $x ? h($t12($x['start_time']) . ' - ' . $t12($x['end_time'])) : '' ?></td><td><?= $x ? nf(session_hours($x)) : '' ?></td>
-        <td colspan="2" class="l"><?= h($cc[0]) ?></td><td class="r"><?= h($cc[1]) ?></td></tr>
-    <?php endfor; ?>
-    <tr class="sub"><td colspan="2" class="r b">Total session hours (approved, 1-hour sessions)</td><td><?= nf($L['sessApproved']) ?></td>
-        <td colspan="3" class="l"><?= $L['sessPending'] > 0 ? nf($L['sessPending']) . ' hr(s) still waiting for the chair' : '' ?></td></tr>
+    <tr class="grand">
+      <td colspan="3" class="b">Grand Total (A+B+C)</td>
+      <td class="b"><?= nf($grandTot) ?></td>
+      <td colspan="2" class="b">
+        <?php if (abs($diff40) < 0.01): ?>
+          Meets <?= nf($target40) ?> hrs requirement
+        <?php elseif ($diff40 > 0): ?>
+          OVER <?= nf($target40) ?> hrs by <?= nf($diff40) ?>
+        <?php else: ?>
+          SHORT of <?= nf($target40) ?> hrs by <?= nf(abs($diff40)) ?>
+        <?php endif; ?>
+      </td>
+    </tr>
   </table>
 
   <table class="act">
@@ -269,7 +361,8 @@ function render_instructor_program(array $inst, array $entries, array $designati
 
   <p class="eff">Effective:</p>
 </div>
-<?php }
+<?php
+}
 
 /* ====================== 2. STUDENT'S CLASS PROGRAM (per section) ====================== */
 function render_section_program(string $section, array $entries, array $courses): void {
@@ -294,7 +387,8 @@ function render_section_program(string $section, array $entries, array $courses)
     <?php endforeach; if (!$courses): ?><tr><td colspan="4"><i>No open courses for this year level.</i></td></tr><?php endif; ?>
   </table>
 </div>
-<?php }
+<?php
+}
 
 /* ====================== 3. ROOM UTILIZATION ====================== */
 function render_room_utilization(array $rooms, array $allEntries): void {
@@ -320,7 +414,8 @@ function render_room_utilization(array $rooms, array $allEntries): void {
   </div>
 <?php endforeach; if (!$rooms): ?><p>No rooms found.</p><?php endif; ?>
 </div>
-<?php }
+<?php
+}
 
 /* ====================== 4. FACULTY WORKLOAD MATRIX (admin) ====================== */
 function render_workload_matrix(array $faculty, array $entries): void {
@@ -360,6 +455,7 @@ function render_workload_matrix(array $faculty, array $entries): void {
   </table>
   <?php endforeach; ?>
 </div>
-<?php }
+<?php
+}
 
-require_once __DIR__ . '/approvals.php';      // faculty_load(), designation_credit() (loaded last so both files can see each other)
+require_once __DIR__ . '/approvals.php';

@@ -30,7 +30,6 @@ $navUnread  = $conn ? unread_count($conn, 'admin', currentUserId()) : 0;  // unr
         <a href="classrooms.php" class="<?= $page==='rooms'?'active':'' ?>"><b>⌂</b> Classrooms</a>
         <a href="instructors.php" class="<?= $page==='instructors'?'active':'' ?>"><b>♙</b> Instructors</a>
         <a href="approvals.php" class="<?= $page==='approvals'?'active':'' ?>"><b>✔</b> Approvals <span class="nav-badge" <?= $navPending ? '' : 'hidden' ?>><?= $navPending ?></span></a>
-        <a href="designations.php" class="<?= $page==='designations'?'active':'' ?>"><b>★</b> Designations</a>
         <a href="schedule.php" class="<?= $page==='schedule'?'active':'' ?>"><b>◷</b> Print/Create Schedules</a>
         <a href="print.php" class="<?= $page==='print'?'active':'' ?>"><b>⎙</b> Print Forms</a>
         <a href="notifications.php" class="<?= $page==='notifications'?'active':'' ?>"><b>🔔</b> Notifications <span class="nav-badge" data-notif-badge <?= $navUnread ? '' : 'hidden' ?>><?= $navUnread ?></span></a>
