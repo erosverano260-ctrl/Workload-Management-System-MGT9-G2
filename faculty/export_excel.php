@@ -8,6 +8,9 @@ requireRole('faculty');
 if (!empty($_SESSION['must_change'])) redirect('profile.php');            // same rule as the rest of the portal: choose a new password first
 
 $conn = (new database())->connect();
+$GLOBALS['conn'] = $conn;                                              // print helpers read the shared connection
+if (function_exists('ensure_other_workload_schema')) ensure_other_workload_schema($conn);
+date_default_timezone_set('Asia/Manila');
 $inst = loadInstructor($conn, currentUserId());                         // always the signed-in instructor, never a URL parameter
 $id   = (int)$inst['faculty_id'];
 

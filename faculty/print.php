@@ -31,14 +31,21 @@ $c             = pcfg();
     display: flex;
     gap: 10px;
     align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
     padding: 12px 16px;
     background: #f8fafc;
     border-bottom: 1px solid #cbd5e1;
   }
   .print-toolbar a,
   .print-toolbar button {
-    font: inherit;
+    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
     font-size: 13px;
+    font-weight: 600;
+    line-height: 1.2;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     padding: 7px 14px;
     border-radius: 7px;
     border: 1px solid #0f172a;
@@ -59,6 +66,7 @@ $c             = pcfg();
 <body>
 <div class="print-toolbar">
   <button type="button" onclick="window.print()">🖨 Print Class Program</button>
+  <a href="export_excel.php" class="secondary">⬇ Download Excel</a>
   <a href="other_workload.php" class="secondary">✏️ Edit Section B &amp; C Hours</a>
   <a href="schedule.php" class="secondary">← Back to Schedule</a>
 </div>

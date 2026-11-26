@@ -107,6 +107,10 @@ require '../includes/faculty_header.php';
     .tt-entry.is-modified { outline: 2px dashed #1d4ed8; outline-offset: -2px; }
     .grid-slot.drag-over { background: rgba(29, 78, 216, 0.12); outline: 1px dashed #1d4ed8; }
     .req-status { font-size: 13px; color: #374151; }
+    .primary-btn:disabled { opacity: .45; cursor: not-allowed; transform: none; box-shadow: none; filter: grayscale(.4); }
+    .primary-btn:disabled:hover { background: var(--amber); transform: none; box-shadow: none; }
+    .req-howto { margin: 0 0 12px; padding: 10px 14px; border-radius: 10px; background: #fff8ea; border: 1px solid #f3d58a; color: #6b4e00; font-size: 13px; line-height: 1.5; }
+    .req-howto strong { color: #4a3500; }
 
     /* Other instructors' blocks: only shown when auto-filtered by room + overlapping time */
     .tt-other-blk {
@@ -213,17 +217,25 @@ require '../includes/faculty_header.php';
     </div>
 
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <button class="primary-btn" type="button" id="sendRequestBtn" disabled>✉ Send Change Request</button>
-        <button class="primary-btn" type="button" id="resetMovesBtn" disabled>↺ Reset Changes</button>
+        <button class="primary-btn" type="button" id="sendRequestBtn" disabled title="Move, resize or change the room of a class first">✉ Send Change Request</button>
+        <button class="primary-btn" type="button" id="resetMovesBtn" disabled title="Nothing to reset yet">↺ Reset Changes</button>
         <a href="print.php" class="primary-btn" style="text-decoration:none">📄 Official class program</a>
         <button class="primary-btn" type="button" onclick="window.print()">🖨 Print this grid</button>
-        <a href="../export_excel.php?type=instructor" class="primary-btn" style="text-decoration:none" title="Fixed paper size; legal ' 8.5 × 13 inches'"> Export Excel</a>
+        <a href="export_excel.php" class="primary-btn" style="text-decoration:none" title="Excel download, long bond (8.5 × 13 in)">⬇ Export Excel</a>
         
         
     </div>
     
 </div>
 
+
+<?php if ($entries): ?>
+<div class="req-howto no-print">
+    <strong>How to request a change:</strong> click a class to select it, then <strong>drag it</strong> to another time slot or day,
+    <strong>drag its top / bottom edge</strong> to resize it, or pick another room in the bar that appears.
+    <em>Send Change Request</em> and <em>Reset Changes</em> switch on once you have made at least one change. Nothing is final until the chair approves it.
+</div>
+<?php endif; ?>
 
 <div class="room-change-bar no-print" id="roomChangeBar">
     <strong id="roomBarLabel">Selected block:</strong>
@@ -451,6 +463,8 @@ require '../includes/faculty_header.php';
         countEl.textContent = n === 0 ? 'No pending changes' : `${n} change${n === 1 ? '' : 's'} ready to send`;
         sendBtn.disabled = n === 0;
         resetBtn.disabled = n === 0;
+        sendBtn.title  = n === 0 ? 'Move, resize or change the room of a class first' : 'Send your requested changes to the chair';
+        resetBtn.title = n === 0 ? 'Nothing to reset yet' : 'Undo all changes you have not sent yet';
     }
 
     function refreshMetaLabel(block) {

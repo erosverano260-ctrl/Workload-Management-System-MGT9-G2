@@ -29,6 +29,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->bind_param('ssssi', $specV, $daysV, $fromV, $toV, $id);
             $stmt->execute();
             flash_set('success', 'Availability saved.');
+        } elseif ($action === 'upload_photo' || $action === 'remove_photo') {
+            if (!empty($_SESSION['must_change'])) { flash_set('error', 'Change your password first.'); redirect('profile.php'); }
+            ensure_faculty_photo_column($conn);
+            $stmt = $conn->prepare("SELECT photo FROM faculty WHERE faculty_id=?");
+            $stmt->bind_param('i', $id); $stmt->execute();
+            $oldPhoto = $stmt->get_result()->fetch_assoc()['photo'] ?? null;
+            if ($action === 'upload_photo') {
+                try { $newPhoto = save_faculty_photo($_FILES['photo'] ?? [], $id); }
+                catch (RuntimeException $e) { flash_set('error', $e->getMessage()); redirect('profile.php'); }
+                flash_set('success', 'Profile photo updated.');
+            } else { $newPhoto = null; flash_set('success', 'Profile photo removed.'); }
+            $stmt = $conn->prepare("UPDATE faculty SET photo=? WHERE faculty_id=?");
+            $stmt->bind_param('si', $newPhoto, $id); $stmt->execute();
+            delete_faculty_photo_file($oldPhoto);
         } elseif ($action === 'change_password') {
             $cur = (string)($_POST['current'] ?? ''); $new = (string)($_POST['new'] ?? ''); $conf = (string)($_POST['confirm'] ?? '');
             $stmt = $conn->prepare("SELECT password FROM faculty WHERE faculty_id=?");
@@ -75,6 +89,41 @@ $picked = array_filter(explode(',', (string)$inst['available_days']));
 <?php endif; ?>
 
 <div class="profile-grid">
+  <?php if (!$mustChange): ?>
+  <?php $photoUrl = faculty_photo_url($inst['photo'] ?? ''); ?>
+  <div class="f-card photo-card" style="grid-column:1 / -1">
+    <div class="photo-preview" id="photoPreview">
+      <?php if ($photoUrl): ?><img src="<?= h($photoUrl) ?>" alt="Your profile photo"><?php else: ?><span><?= h(strtoupper(mb_substr(preg_replace('/^(engr|dr|prof|mr|ms|mrs)\.?\s+/i', '', $inst['faculty_name']), 0, 1))) ?></span><?php endif; ?>
+    </div>
+    <div class="photo-body">
+      <h3>Profile photo</h3>
+      <p class="f-sub">A clear photo of your face. JPG, PNG or WEBP, up to 2 MB. It is cropped to a square and shown in the sidebar.</p>
+      <div class="photo-row">
+      <form method="post" enctype="multipart/form-data" class="photo-actions">
+        <?= csrf_field() ?>
+        <input type="hidden" name="action" value="upload_photo">
+        <input type="file" name="photo" id="photoInput" accept="image/jpeg,image/png,image/webp" required>
+        <button type="submit" class="primary-btn">Upload photo</button>
+      </form>
+      <?php if ($photoUrl): ?>
+      <form method="post" class="photo-actions" onsubmit="return confirm('Remove your profile photo?')">
+        <?= csrf_field() ?>
+        <input type="hidden" name="action" value="remove_photo">
+        <button type="submit" class="outline-btn photo-remove">Remove photo</button>
+      </form>
+      <?php endif; ?>
+      </div>
+    </div>
+  </div>
+  <script>
+  document.getElementById('photoInput').addEventListener('change', function () {
+      const f = this.files[0], box = document.getElementById('photoPreview');
+      if (!f) return;
+      if (f.size > 2 * 1024 * 1024) { alert('The photo is too large. Maximum is 2 MB.'); this.value = ''; return; }
+      box.innerHTML = ''; const im = new Image(); im.src = URL.createObjectURL(f); box.appendChild(im);
+  });
+  </script>
+  <?php endif; ?>
   <?php if (!$mustChange): ?>
   <form method="post" class="f-card f-form">
     <?= csrf_field() ?>
