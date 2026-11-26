@@ -18,7 +18,9 @@
 .f-actions { display: flex; justify-content: flex-end; margin-top: 4px; }
 .ui-chips { position: relative; }
 .profile-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }
-.account-wrap { max-width: 520px; }
+/* centered column: heading, flash message and card line up together */
+.account-page { max-width: 520px; margin-left: auto; margin-right: auto; }
+.account-wrap { max-width: none; }
 
 /* ---------- Faculty dashboard lists ---------- */
 .wk-day { padding: 10px 0; border-top: 1px solid var(--border); }
@@ -51,7 +53,10 @@
 @media (max-width: 520px) { .f-grid2 { grid-template-columns: 1fr; } .wk-day li { flex-direction: column; gap: 0; } .wk-day li time { width: auto; } }
 
 /* ---------- notifications ---------- */
-.notif-list { display: grid; gap: 8px; max-width: 760px; }
+/* centered column, shared by the chair and faculty notification pages */
+.notif-page { max-width: 760px; margin-left: auto; margin-right: auto; }
+.notif-page .empty { text-align: center; }
+.notif-list { display: grid; gap: 8px; width: 100%; }
 .notif { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: #fff; text-decoration: none; color: var(--text); transition: border-color .2s, transform .2s; }
 .notif:hover { border-color: var(--amber-dark); transform: translateY(-1px); }
 .notif.unread { background: #fff8ea; border-color: #f3d58a; }
@@ -102,3 +107,37 @@
 .wk-bar span { display: block; height: 100%; }
 .wk-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
 .wk-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+
+/* Sidebar: a long label wraps inside its own column so the icon stays aligned with the first line */
+.sidebar nav a span:not(.nav-badge) { flex: 1; min-width: 0; line-height: 1.25; }
+.sidebar nav a b { flex: none; }
+
+/* Collapsed sidebar: hide the wrapped label so the icon sits dead-centre */
+@media (min-width: 641px) {
+    html.nav-collapsed .sidebar nav a span:not(.nav-badge) { display: none; }
+    html.nav-collapsed .sidebar nav a b { flex: none; width: auto; }
+}
+
+/* Profile photo */
+.sidebar-foot .avatar { flex: none; overflow: hidden; }
+.sidebar-foot .avatar.has-photo { background: none; }
+.sidebar-foot .avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.photo-card { display: flex; gap: 22px; align-items: center; flex-wrap: wrap; }
+.photo-preview { width: 110px; height: 110px; flex: none; border-radius: 50%; overflow: hidden; background: var(--navy); color: var(--amber);
+    display: flex; align-items: center; justify-content: center; font-size: 40px; font-weight: 700; border: 3px solid var(--amber); }
+.photo-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.photo-body { flex: 1; min-width: 240px; }
+.photo-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+
+/* Photo card: upload + remove side by side, styled file picker */
+.photo-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+.photo-row .photo-actions { margin-top: 0; }
+.photo-actions input[type=file] { max-width: 260px; font: inherit; font-size: 13px; color: var(--muted); }
+.photo-actions input[type=file]::file-selector-button {
+    margin-right: 10px; height: 42px; padding: 0 16px; border: 1.5px solid var(--border); border-radius: 10px;
+    background: #fff; color: var(--navy); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer;
+    transition: border-color .2s, background-color .2s, transform .15s;
+}
+.photo-actions input[type=file]::file-selector-button:hover { border-color: var(--amber-dark); background: #fff8ea; }
+.photo-actions .primary-btn, .photo-actions .outline-btn { height: 42px; padding: 0 18px; }
+@media (max-width: 520px) { .photo-actions input[type=file] { max-width: 100%; } }

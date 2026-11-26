@@ -265,4 +265,5 @@ tr:last-child td{border-bottom:none}
     stroke: currentColor;
     visibility: visible;
     opacity: 1;
-}
+}.faculty-avatar.has-photo{background:none;overflow:hidden;padding:0}
+.faculty-avatar img{width:100%;height:100%;object-fit:cover;display:block}
