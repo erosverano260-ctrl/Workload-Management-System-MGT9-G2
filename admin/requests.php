@@ -4,7 +4,6 @@ $page = 'requests';$title = 'Faculty Requests';
 require '../includes/db.php';
 require '../includes/auth.php';
 require '../includes/ui.php';
-require '../includes/notifications.php';
 require '../includes/notify.php';
 require '../includes/schedule_helpers.php';
 requireRole('admin');
@@ -28,7 +27,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $ok =$decision === 'Approved';
     try {
-        notif_ensure($conn);
         ensure_approval_schema($conn);
 
         if ($kind === 'schedule_change') {
@@ -42,13 +40,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($scRow =$rq->get_result()->fetch_assoc()) {
                 $fromStr =$scRow['old_day'] . ' ' . $t12($scRow['old_start']) . ' - ' . $t12($scRow['old_end']);
                 $toStr   =$scRow['new_day'] . ' ' . $t12($scRow['new_start']) . ' - ' . $t12($scRow['new_end']);
-                notif_add(
-                    $conn,
-                    (int)$scRow['faculty_id'],$ok ? 'approved' : 'rejected',
-                    $ok ? 'Schedule change approved' : 'Schedule change not approved',
-                    'The chair ' . ($ok ? 'approved' : 'rejected') . ' moving your class from ' . $fromStr . ' to ' .$toStr . '.' . $noteTxt,
-                    'schedule.php'
-                );
                 notify(
                     $conn,
                     'faculty',
@@ -72,9 +63,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $st =$conn->prepare("UPDATE faculty_designations SET status = ? WHERE fd_id = ? AND status = 'Pending'");
                 $st->bind_param('si',$decision, $id);$st->execute();
                 $name =$row['name'];
-                if ($ok) notif_add($conn, (int)$row['faculty_id'], 'approved', 'Designation approved',
+                if ($ok) notify($conn, 'faculty', (int)$row['faculty_id'], 'approved',
                         'The chair approved your request for the designation "' . $name . '". It now prints in section C of your class program.' . $noteTxt, 'designations.php');
-                else     notif_add($conn, (int)$row['faculty_id'], 'rejected', 'Designation not approved',
+                else     notify($conn, 'faculty', (int)$row['faculty_id'], 'rejected',
                         'The chair rejected your request for the designation "' . $name . '".' . $noteTxt . ' You can send the request again from My Designations.', 'designations.php');
                 $done = true;
             }
@@ -86,9 +77,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $st =$conn->prepare("UPDATE overload_sessions SET status = ? WHERE session_id = ? AND status = 'Pending'");
                 $st->bind_param('si',$decision, $id);$st->execute();
                 $when =$row['day_of_week'] . ', ' . $t12($row['start_time']) . ' - ' . $t12($row['end_time']);
-                if ($ok) notif_add($conn, (int)$row['faculty_id'], 'approved', 'Overload session approved',
+                if ($ok) notify($conn, 'faculty', (int)$row['faculty_id'], 'approved',
                         'The chair approved your overload session on ' . $when . '.' . $noteTxt, 'overload.php');
-                else     notif_add($conn, (int)$row['faculty_id'], 'rejected', 'Overload session not approved',
+                else     notify($conn, 'faculty', (int)$row['faculty_id'], 'rejected',
                         'The chair rejected your overload session on ' . $when . '.' . $noteTxt . ' You can add a different session from Overload Sessions.', 'overload.php');
                 $done = true;
             }
@@ -96,6 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $conn->commit();
         flash_set($done ? 'success' : 'error', $done ? ('Request ' . strtolower($decision) . '. The instructor has been notified.') : 'That request was already decided or no longer exists.');
     } catch (Throwable $e) {
+        error_log('requests.php decision failed: ' . $e->getMessage());
         try { $conn->rollback(); } catch (Throwable$e2) { /* ignore */ }
         flash_set('error', 'Could not save the decision. Please try again.');
     }
@@ -117,10 +109,10 @@ $scheduleChanges =$conn->query("SELECT r.request_id, r.old_day, r.old_start, r.o
                                  WHERE r.status = 'Pending' ORDER BY r.created_at, r.request_id")->fetch_all(MYSQLI_ASSOC);
 $recent = [];
 try {
-    notif_ensure($conn);
-    $recent =$conn->query("SELECT n.kind, n.title, n.body, n.created_at, f.faculty_name
-                            FROM notifications n JOIN faculty f ON f.faculty_id = n.faculty_id
-                            WHERE n.kind IN ('approved','rejected') ORDER BY n.notif_id DESC LIMIT 10")->fetch_all(MYSQLI_ASSOC);
+    ensure_approval_schema($conn);
+    $recent = $conn->query("SELECT n.type AS kind, n.message AS body, n.created_at, f.faculty_name
+                            FROM notifications n JOIN faculty f ON f.faculty_id = n.user_id
+                            WHERE n.user_role = 'faculty' AND n.type IN ('approved','rejected') ORDER BY n.notification_id DESC LIMIT 10")->fetch_all(MYSQLI_ASSOC);
 } catch (Throwable $e) {$recent = []; }
 $pending = count($designations) + count($sessions) + count($scheduleChanges);
 
@@ -171,7 +163,7 @@ $flash = flash_get();
         <span class="<?= $timeChanged ? 'rq-diff' : '' ?>"><?= h($t12($r['new_start'])) ?> - <?= h($t12($r['new_end'])) ?></span>
       </td>
       <td><?= h($r['faculty_note'] ?: '-') ?></td>
-      <td><?= h(notif_ago($r['created_at'])) ?></td>
+      <td><?= h(time_ago($r['created_at'])) ?></td>
       <td>
         <form method="post" class="rq-form"><?= csrf_field() ?>
           <input type="hidden" name="kind" value="schedule_change"><input type="hidden" name="id" value="<?= (int)$r['request_id'] ?>">
@@ -194,13 +186,13 @@ $flash = flash_get();
   <div class="table-card">
   <?php if (!$recent): ?><div class="empty">No recent notifications.</div><?php else: ?>
   <table>
-    <tr><th>TYPE</th><th>TITLE</th><th>DETAILS</th><th>DATE</th></tr>
+    <tr><th>TYPE</th><th>FACULTY</th><th>DETAILS</th><th>DATE</th></tr>
     <?php foreach ($recent as$r): ?>
     <tr>
       <td><span class="rq-pill <?= h($r['kind']) ?>"><?= h($r['kind']) ?></span></td>
-      <td><?= h($r['title']) ?></td>
+      <td><?= h($r['faculty_name']) ?></td>
       <td><?= h($r['body']) ?></td>
-      <td><?= h(notif_ago($r['created_at'])) ?></td>
+      <td><?= h(time_ago($r['created_at'])) ?></td>
     </tr>
     <?php endforeach; ?>
   </table>

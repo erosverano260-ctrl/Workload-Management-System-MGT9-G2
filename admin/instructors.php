@@ -128,8 +128,14 @@ $flash = flash_get();
 $needsMigration = false;
 $instructors = [];
 try {
+    /* instructors upload their own face photo (faculty.photo); make sure the column exists before selecting it */
+    if ($conn->query("SHOW COLUMNS FROM faculty LIKE 'photo'")->num_rows === 0) {
+        $conn->query("ALTER TABLE faculty ADD COLUMN photo varchar(120) DEFAULT NULL");
+    }
+} catch (Throwable $e) { /* fall through; the main query below reports real problems */ }
+try {
     $instructors = $conn->query(
-        "SELECT f.faculty_id, f.username, f.faculty_name, f.specialty, f.available_days, f.available_from, f.available_to,
+        "SELECT f.faculty_id, f.username, f.faculty_name, f.specialty, f.available_days, f.available_from, f.available_to, f.photo,
                 COUNT(s.schedule_id) AS classes
          FROM faculty f
          LEFT JOIN schedules s ON s.faculty_id = f.faculty_id
@@ -164,7 +170,8 @@ $editDays = $editing ? array_filter(explode(',', (string)$editing['available_day
 <div class="instructor-grid">
 <?php foreach ($instructors as $i): ?>
 <div class="instructor-card">
-    <div class="faculty-avatar"><?= h(initialOf($i['faculty_name'])) ?></div>
+    <?php $pf = basename((string)($i['photo'] ?? '')); $pfOk = $pf !== '' && is_file(__DIR__ . '/../uploads/faculty/' . $pf); ?>
+    <div class="faculty-avatar<?= $pfOk ? ' has-photo' : '' ?>"><?php if ($pfOk): ?><img src="../uploads/faculty/<?= h(rawurlencode($pf)) ?>?v=<?= filemtime(__DIR__ . '/../uploads/faculty/' . $pf) ?>" alt="<?= h($i['faculty_name']) ?>"><?php else: ?><?= h(initialOf($i['faculty_name'])) ?><?php endif; ?></div>
     <div class="faculty-info">
         <h3><?= h($i['faculty_name']) ?></h3>
         <p><?= h($i['specialty'] ?: 'No specialty set') ?></p>
