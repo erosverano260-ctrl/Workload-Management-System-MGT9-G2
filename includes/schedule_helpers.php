@@ -108,9 +108,77 @@ function outsideAvailability(array $e, array $inst): bool {
 
 function ordinal(int $n): string { return $n . ($n === 1 ? 'st' : ($n === 2 ? 'nd' : ($n === 3 ? 'rd' : 'th'))); }
 
+
+/** Adds faculty.photo (file name of the instructor's uploaded face photo) the first time it is needed. */
+function ensure_faculty_photo_column(mysqli $c): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    try {
+        if ($c->query("SHOW COLUMNS FROM faculty LIKE 'photo'")->num_rows === 0) {
+            $c->query("ALTER TABLE faculty ADD COLUMN photo varchar(120) DEFAULT NULL");
+        }
+    } catch (Throwable $e) { /* leave it; the page simply shows initials */ }
+}
+
+/** Folder (on disk) and URL prefix for instructor photos. */
+function faculty_photo_dir(): string { return dirname(__DIR__) . '/uploads/faculty'; }
+
+/** URL (relative to a page one folder deep, e.g. /faculty/) of an instructor's photo, or '' when none. */
+function faculty_photo_url(?string $file): string {
+    $file = basename((string)$file);
+    if ($file === '' || !is_file(faculty_photo_dir() . '/' . $file)) return '';
+    return '../uploads/faculty/' . rawurlencode($file) . '?v=' . filemtime(faculty_photo_dir() . '/' . $file);
+}
+
+/**
+ * Validates and stores an uploaded face photo (JPG/PNG/WEBP, max 2 MB). The image is re-encoded as a square JPEG
+ * (so nothing but pixels is ever stored), named randomly. Returns the new file name; throws RuntimeException with a user message.
+ */
+function save_faculty_photo(array $f, int $facultyId): string {
+    if (($f['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) throw new RuntimeException('Choose a photo first.');
+    if ($f['error'] === UPLOAD_ERR_INI_SIZE || $f['error'] === UPLOAD_ERR_FORM_SIZE || ($f['size'] ?? 0) > 2 * 1024 * 1024) throw new RuntimeException('The photo is too large. Maximum is 2 MB.');
+    if ($f['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($f['tmp_name'])) throw new RuntimeException('The upload failed. Please try again.');
+    $info = @getimagesize($f['tmp_name']);
+    $loaders = [IMAGETYPE_JPEG => 'imagecreatefromjpeg', IMAGETYPE_PNG => 'imagecreatefrompng', IMAGETYPE_WEBP => 'imagecreatefromwebp'];
+    $exts    = [IMAGETYPE_JPEG => 'jpg', IMAGETYPE_PNG => 'png', IMAGETYPE_WEBP => 'webp'];
+    if (!$info || !isset($exts[$info[2]])) throw new RuntimeException('Please upload a JPG, PNG or WEBP image.');
+    $dir = faculty_photo_dir();
+    if (!is_dir($dir) && !@mkdir($dir, 0775, true)) throw new RuntimeException('Could not create the uploads folder.');
+    $base = 'f' . $facultyId . '_' . bin2hex(random_bytes(6));
+
+    /* Preferred: re-encode as a 400 px square JPEG with GD (strips anything that is not pixels). */
+    $canResize = function_exists('imagecreatetruecolor') && function_exists('imagejpeg')
+              && isset($loaders[$info[2]]) && function_exists($loaders[$info[2]]);
+    if ($canResize) {
+        $src = @($loaders[$info[2]])($f['tmp_name']);
+        if ($src) {
+            [$w, $h] = [imagesx($src), imagesy($src)];
+            $side = min($w, $h);
+            $dst = imagecreatetruecolor(400, 400);
+            imagefill($dst, 0, 0, imagecolorallocate($dst, 255, 255, 255));
+            imagecopyresampled($dst, $src, 0, 0, intdiv($w - $side, 2), intdiv($h - $side, 2), 400, 400, $side, $side);
+            $name = $base . '.jpg';
+            if (imagejpeg($dst, $dir . '/' . $name, 88)) return $name;
+        }
+    }
+
+    /* Fallback when PHP GD is not enabled: the file was already verified as a real image by getimagesize(),
+       so keep it as-is under a random name (the browser crops it to a circle/square when displaying). */
+    $name = $base . '.' . $exts[$info[2]];
+    if (!move_uploaded_file($f['tmp_name'], $dir . '/' . $name)) throw new RuntimeException('Could not save the photo.');
+    return $name;
+}
+
+function delete_faculty_photo_file(?string $file): void {
+    $file = basename((string)$file);
+    if ($file !== '' && is_file(faculty_photo_dir() . '/' . $file)) @unlink(faculty_photo_dir() . '/' . $file);
+}
+
 /** The signed-in instructor's own row. If an admin deleted them mid-session, sign them out. */
 function loadInstructor(mysqli $c, int $id): array {
-    $stmt = $c->prepare("SELECT faculty_id, username, faculty_name, specialty, available_days, available_from, available_to FROM faculty WHERE faculty_id = ?");
+    ensure_faculty_photo_column($c);
+    $stmt = $c->prepare("SELECT faculty_id, username, faculty_name, specialty, available_days, available_from, available_to, photo FROM faculty WHERE faculty_id = ?");
     $stmt->bind_param('i', $id);
     $stmt->execute();
     $row = $stmt->get_result()->fetch_assoc();

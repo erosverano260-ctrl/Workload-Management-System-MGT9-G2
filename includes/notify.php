@@ -154,7 +154,7 @@ if (!function_exists('notifications_render')) {
         $icons = ['approved' => '✔', 'rejected' => '✖', 'request' => '✎', 'overload' => '＋', 'designation' => '★'];
     ?>
     <link rel="stylesheet" href="<?= asset('portal.css') ?>">
-    <section class="page-section">
+    <section class="page-section notif-page">
     <div class="section-heading">
         <div><span class="eyebrow">NOTIFICATIONS</span><h2>Notifications</h2></div>
         <?php if ($unread): ?>

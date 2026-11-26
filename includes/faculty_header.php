@@ -8,6 +8,16 @@ if (!empty($_SESSION['must_change']) && ($page ?? '') !== 'profile') {
 }
 $facName = currentUserName() ?: 'Instructor';
 if (!isset($conn) || !($conn instanceof mysqli)) { try { require_once __DIR__ . '/db.php'; $conn = (new database())->connect(); } catch (Throwable $e) { $conn = null; } }
+$navPhoto = '';
+if ($conn) {
+    try {
+        require_once __DIR__ . '/schedule_helpers.php';
+        ensure_faculty_photo_column($conn);
+        $stP = $conn->prepare("SELECT photo FROM faculty WHERE faculty_id = ?");
+        $fid = currentUserId(); $stP->bind_param('i', $fid); $stP->execute();
+        $navPhoto = faculty_photo_url($stP->get_result()->fetch_assoc()['photo'] ?? '');
+    } catch (Throwable $e) { $navPhoto = ''; }
+}
 $navUnread = $conn ? unread_count($conn, 'faculty', currentUserId()) : 0;     // unread notifications
 ?>
 <!DOCTYPE html>
@@ -32,11 +42,11 @@ $navUnread = $conn ? unread_count($conn, 'faculty', currentUserId()) : 0;     //
         <a href="index.php" class="<?= $page==='dashboard'?'active':'' ?>"><b>▦</b> My Dashboard</a>
         <a href="schedule.php" class="<?= $page==='schedule'?'active':'' ?>"><b>◷</b> My Schedule</a>
         <a href="profile.php" class="<?= $page==='profile'?'active':'' ?>"><b>♙</b> My Profile</a>
-        <a href="other_workload.php" class="<?= ($page ?? '') === 'other_workload' ? 'active' : '' ?>">📋 Other Functions &amp; Designation</a>
-        <a href="notifications.php" class="<?= $page==='notifications'?'active':'' ?>"><b>🔔</b> Notifications <span class="nav-badge" data-notif-badge <?= $navUnread ? '' : 'hidden' ?>><?= $navUnread ?></span></a>
+        <a href="other_workload.php" class="<?= ($page ?? '') === 'other_workload' ? 'active' : '' ?>"><b>▤</b> <span>Other Functions &amp; Designation</span></a>
+        <a href="notifications.php" class="<?= $page==='notifications'?'active':'' ?>"><b>✉</b> Notifications <span class="nav-badge" data-notif-badge <?= $navUnread ? '' : 'hidden' ?>><?= $navUnread ?></span></a>
     </nav>
     <div class="sidebar-foot">
-        <div class="avatar small"><?= h(strtoupper(mb_substr(preg_replace('/^(engr|dr|prof|mr|ms|mrs)\.?\s+/i', '', $facName), 0, 1))) ?></div>
+        <div class="avatar small<?= $navPhoto ? ' has-photo' : '' ?>"><?php if ($navPhoto): ?><img src="<?= h($navPhoto) ?>" alt=""><?php else: ?><?= h(strtoupper(mb_substr(preg_replace('/^(engr|dr|prof|mr|ms|mrs)\.?\s+/i', '', $facName), 0, 1))) ?><?php endif; ?></div>
         <div><strong><?= h($facName) ?></strong><small>Faculty</small></div>
         <a href="../logout.php" class="logout-link" title="Log out" aria-label="Log out">
             <svg class="logout-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

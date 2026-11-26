@@ -7,6 +7,16 @@ $adminName = currentUserName() ?: 'Admin';
 if (!isset($conn) || !($conn instanceof mysqli)) { try { require_once __DIR__ . '/db.php'; $conn = (new database())->connect(); } catch (Throwable $e) { $conn = null; } }
 $navPending = $conn ? pending_approval_count($conn) : 0;                 // requests waiting for the chair
 $navUnread  = $conn ? unread_count($conn, 'admin', currentUserId()) : 0;  // unread notifications
+$navPhoto = '';
+if ($conn) {
+    try {
+        require_once __DIR__ . '/admin_photo.php';
+        ensure_admin_photo_column($conn);
+        $stP = $conn->prepare("SELECT photo FROM admins WHERE admin_id = ?");
+        $aid = currentUserId(); $stP->bind_param('i', $aid); $stP->execute();
+        $navPhoto = admin_photo_url($stP->get_result()->fetch_assoc()['photo'] ?? '');
+    } catch (Throwable $e) { $navPhoto = ''; }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -37,7 +47,7 @@ $navUnread  = $conn ? unread_count($conn, 'admin', currentUserId()) : 0;  // unr
         
     </nav>
     <div class="sidebar-foot">
-        <div class="avatar small"><?= h(strtoupper(mb_substr($adminName, 0, 1))) ?></div>
+        <div class="avatar small<?= $navPhoto ? ' has-photo' : '' ?>"><?php if ($navPhoto): ?><img src="<?= h($navPhoto) ?>" alt=""><?php else: ?><?= h(strtoupper(mb_substr($adminName, 0, 1))) ?><?php endif; ?></div>
         <div><strong><?= h($adminName) ?></strong><small>Administrator</small></div>
         <a href="../logout.php" class="logout-link" title="Log out" aria-label="Log out">
             <svg class="logout-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
